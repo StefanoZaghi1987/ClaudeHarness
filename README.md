@@ -1,0 +1,2 @@
+# HarnessConfiguration
+Claude Harness Configuration
