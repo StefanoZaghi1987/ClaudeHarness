@@ -1,1 +1,26 @@
+# OS
 .DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editors
+.idea/
+.vscode/
+*.swp
+
+# Python (embedded in resync.sh tooling)
+__pycache__/
+*.pyc
+
+# patch/diff artifacts (resync.sh)
+*.orig
+*.rej
+*.bak
+
+# Node (not currently produced by this repo)
+node_modules/
+dist/
+
+# Logs & temp
+*.log
+*.tmp
