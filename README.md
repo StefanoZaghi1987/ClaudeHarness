@@ -4,17 +4,19 @@
 ![Requires](https://img.shields.io/badge/Requires-Claude_Code-8A2BE2.svg)
 ![Platform](https://img.shields.io/badge/Platform-Git_Bash_%7C_Windows_%2B_Unix-6E7781.svg)
 
-A curated, self-maintaining [Claude Code](https://claude.com/claude-code) configuration for agentic, spec-driven development: reviewer subagents that gate every phase, model routing that spends the right model tier on the right task, and the maintenance skills that keep the whole setup aligned with Claude Code as it evolves.
+A curated, self-maintaining [Claude Code](https://claude.com/claude-code) configuration for agentic, spec-driven development — engineered rather than accreted: an audited, evidence-based selection of agents, rules, and skills instead of a pile of installed plugins. What that produced: reviewer subagents that gate every phase, model routing that spends the right model tier on the right task, and the maintenance skills that keep the whole setup aligned with Claude Code as it evolves.
 
-This is not an application — there is nothing to build or run to use the repo. It is a reference configuration you copy into your `~/.claude` directory, plus the meta-prompts that were used to design and audit it, so you can adapt the same methodology to your own harness.
+This is not an application — there is nothing to build or run to use the repo. It is a reference configuration you copy into your `~/.claude` directory, plus the meta-prompts that were used to design and audit it, so you can adapt the same methodology to your own harness. It is aimed at people already using Claude Code who want reviewer-gated phases and deliberate model routing without assembling them piece by piece — copy what you need, skip the rest.
 
 ## Why
 
-Three ideas shape everything in this repo:
+Five ideas shape everything in this repo:
 
-1. **Spec-driven workflow with quality gates.** Work moves through a pipeline — design, spec, plan, implementation — and a dedicated reviewer subagent critiques the output of each phase *before* the next one starts. Nothing gets planned from an unreviewed spec, and nothing gets merged from an unreviewed plan.
-2. **Deliberate model routing.** Everyday work runs at the default tier; the expensive, highest-tier models are reserved for the phases where judgement actually pays: architecture, spec review, plan review, and code review. Model references are aliases only (`fable`, `opus`, `sonnet`, `haiku`) — never versioned IDs — with a tiered fallback chain, so the configuration survives model updates. The full set of requirements is in [`HarnessConfiguration/prompts/2_ImproveClaudeCodeConfiguration.md`](HarnessConfiguration/prompts/2_ImproveClaudeCodeConfiguration.md).
-3. **The harness maintains itself.** Two skills keep the configuration honest: one re-validates model routing against the current official docs, and one re-vendors a fleet of vendored skills from their upstream plugins without losing protected local edits.
+1. **Harness engineering over accretion.** The configuration was designed by an explicit audit — inventory, evidence dossiers per skill, weighted comparison per workflow phase, a conflict matrix, a target harness, and a migration plan — not by installing popular plugins until something worked. Every claim about a skill derives from the files actually on disk, never from training memory. The methodology is [`HarnessConfiguration/prompts/5_AnalyzeSkills.md`](HarnessConfiguration/prompts/5_AnalyzeSkills.md).
+2. **Thin skills, thick context.** A skill earns its place by what it loads per unit of value: lean body at invocation, depth in reference files loaded on demand, no imperative directives that burn context every turn. The thickness lives in the artifact chain — spec, plan, cross-referenced tasks, review reports — and in `CLAUDE.md` precedence rules. For some phases the winning choice is zero skills and one line of instruction.
+3. **Spec-driven workflow with quality gates.** Work moves through a pipeline — design, spec, plan, implementation — and a dedicated reviewer subagent critiques the output of each phase *before* the next one starts. Nothing gets planned from an unreviewed spec, and nothing gets merged from an unreviewed plan.
+4. **Deliberate model routing.** Everyday work runs at the default tier; the expensive, highest-tier models are reserved for the phases where judgement actually pays: architecture, spec review, plan review, and code review. Model references are aliases only (`fable`, `opus`, `sonnet`, `haiku`) — never versioned IDs — with a tiered fallback chain, so the configuration survives model updates. The full set of requirements is in [`HarnessConfiguration/prompts/2_ImproveClaudeCodeConfiguration.md`](HarnessConfiguration/prompts/2_ImproveClaudeCodeConfiguration.md).
+5. **The harness maintains itself.** Two skills keep the configuration honest: one re-validates model routing against the current official docs, and one re-vendors a fleet of vendored skills from their upstream plugins without losing protected local edits.
 
 ## The workflow
 
@@ -41,7 +43,7 @@ HarnessConfiguration/
 ├── config/
 │   ├── agents/     # 4 subagents forming the review pipeline
 │   ├── rules/      # 1 global rule (effort escalation)
-│   └── skills/     # 2 maintenance skills
+│   └── skills/     # 2 maintenance skills (skills-resync ships scripts/: resync.sh, inventory.tsv, patches/)
 └── prompts/        # 5 meta-prompts that designed and audited this config
 ```
 
