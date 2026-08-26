@@ -24,3 +24,6 @@ dist/
 # Logs & temp
 *.log
 *.tmp
+
+# Marketing drafts (stay local, never tracked)
+/marketing/
