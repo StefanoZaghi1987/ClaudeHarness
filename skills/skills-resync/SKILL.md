@@ -3,6 +3,7 @@ name: skills-resync
 description: Re-sync the vendored user skills in ~/.claude/skills against their upstream plugin copies, and re-vendor the ones that moved after one confirmation. Manual maintenance task.
 disable-model-invocation: true
 allowed-tools: Bash, Read, Glob, Grep, Edit, Write
+compatibility: Designed for Claude Code. Requires git, patch, diff, awk and python3 on PATH (Git Bash on Windows); manages skills under ~/.claude/skills.
 ---
 
 These skills were copied out of their plugins so they survive the plugin being disabled, updated

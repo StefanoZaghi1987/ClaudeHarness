@@ -16,6 +16,10 @@
 # SKILL.md is the source of truth for *why* a row is here and which protected edits it
 # carries. This file is the source of truth for *where* it came from.
 #
+# The rows below ship the author's own vendored fleet as a worked example of the format,
+# not configuration to reproduce. Point $INVENTORY at your own file (or start from an
+# empty one) to manage a different set of vendored skills.
+#
 code-review-and-quality	agent-skills@addy-agent-skills	skills/code-review-and-quality	57574227c803c4a1
 code-simplification	agent-skills@addy-agent-skills	skills/code-simplification	a6d4aba8358a4663
 context-engineering	agent-skills@addy-agent-skills	skills/context-engineering	cef1aaff58296275

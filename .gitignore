@@ -19,6 +19,8 @@ __pycache__/
 
 # Node (not currently produced by this repo)
 node_modules/
+
+# Build output (build_release.py)
 dist/
 
 # Logs & temp

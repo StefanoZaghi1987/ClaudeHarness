@@ -3,6 +3,7 @@ name: model-config-sync
 description: Re-validate the model-routing configuration (settings.json aliases, fallback chain, advisor, reviewer subagents, effort rules) against the current official Claude Code docs and propose updates. Manual maintenance task.
 disable-model-invocation: true
 allowed-tools: WebFetch, Read, Glob, Grep
+compatibility: Designed for Claude Code. Reads and validates the Claude Code model-configuration files in ~/.claude against the official docs.
 ---
 
 Re-validate this machine's model-routing configuration against the current official docs.
