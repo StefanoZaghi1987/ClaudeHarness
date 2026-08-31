@@ -1,0 +1,50 @@
+# Machine-readable half of the skills-resync inventory: what each vendored skill was
+# copied from, and the upstream tree hash it was copied at.
+#
+#   skill <TAB> plugin@marketplace <TAB> subpath-under-plugin <TAB> baseline (tree hash)
+#
+# No version directory appears here on purpose. resync.sh resolves upstream from the
+# marketplace clone under plugins/marketplaces/ (NOT the install cache, which is frozen for
+# disabled plugins), following the source kind the marketplace catalog records. See SKILL.md
+# "Upstream resolution".
+#
+# The baseline is a per-skill hash of the upstream skill directory, not a plugin commit sha:
+# a commit elsewhere in the plugin no longer reads as "this skill moved". `--hash <dir>`
+# prints one. It is rewritten by `resync.sh --apply` on every successful re-vendor.
+# Do not hand-edit it: a baseline that lags reports upstream as moved when it has not.
+#
+# SKILL.md is the source of truth for *why* a row is here and which protected edits it
+# carries. This file is the source of truth for *where* it came from.
+#
+# The rows below ship the author's own vendored fleet as a worked example of the format,
+# not configuration to reproduce. Point $INVENTORY at your own file (or start from an
+# empty one) to manage a different set of vendored skills.
+#
+code-review-and-quality	agent-skills@addy-agent-skills	skills/code-review-and-quality	57574227c803c4a1
+code-simplification	agent-skills@addy-agent-skills	skills/code-simplification	a6d4aba8358a4663
+context-engineering	agent-skills@addy-agent-skills	skills/context-engineering	cef1aaff58296275
+documentation-and-adrs	agent-skills@addy-agent-skills	skills/documentation-and-adrs	f6161596cab00499
+doubt-driven-development	agent-skills@addy-agent-skills	skills/doubt-driven-development	3141d5fdd8449ee5
+idea-refine	agent-skills@addy-agent-skills	skills/idea-refine	c999f1db0b62f009
+incremental-implementation	agent-skills@addy-agent-skills	skills/incremental-implementation	100e4d5820fae9be
+interview-me	agent-skills@addy-agent-skills	skills/interview-me	f271a5931d374e3a
+planning-and-task-breakdown	agent-skills@addy-agent-skills	skills/planning-and-task-breakdown	995b7bffd6108169
+security-and-hardening	agent-skills@addy-agent-skills	skills/security-and-hardening	75cfb5af75bbb4a1
+spec-driven-development	agent-skills@addy-agent-skills	skills/spec-driven-development	78280eeb6945cf6d
+diagnosing-bugs	mattpocock-skills@claude-plugins-official	skills/engineering/diagnosing-bugs	3eaddfa5b028a2d4
+grilling	mattpocock-skills@claude-plugins-official	skills/productivity/grilling	d5833e50e0081bbf
+handoff	mattpocock-skills@claude-plugins-official	skills/productivity/handoff	fe287d0ae54ed66c
+wait-what	mattpocock-skills@claude-plugins-official	skills/productivity/wait-what	d8c5157780c8b493
+wayfinder	mattpocock-skills@claude-plugins-official	skills/engineering/wayfinder	fa164901a041cab3
+writing-for-agents	mattpocock-skills@claude-plugins-official	skills/productivity/writing-for-agents	dc53f07d1f662137
+brainstorming	superpowers@claude-plugins-official	skills/brainstorming	3a59b10c026dfa63
+dispatching-parallel-agents	superpowers@claude-plugins-official	skills/dispatching-parallel-agents	1acb899b23c2bdb5
+executing-plans	superpowers@claude-plugins-official	skills/executing-plans	5036191743cbb55b
+subagent-driven-development	superpowers@claude-plugins-official	skills/subagent-driven-development	e798f5990cd677ac
+systematic-debugging	superpowers@claude-plugins-official	skills/systematic-debugging	e4263f70f52de028
+writing-plans	superpowers@claude-plugins-official	skills/writing-plans	e0dd3fe342b24c3a
+claude-automation-recommender	claude-code-setup@claude-plugins-official	skills/claude-automation-recommender	945d1b7420ebb911
+skill-creator	skill-creator@claude-plugins-official	skills/skill-creator	887b2027e7eeb09e
+build-mcp-server	mcp-server-dev@claude-plugins-official	skills/build-mcp-server	af733dde56bbdcac
+build-mcp-app	mcp-server-dev@claude-plugins-official	skills/build-mcp-app	c0172bc88eeeda9f
+build-mcpb	mcp-server-dev@claude-plugins-official	skills/build-mcpb	fc2a5a2ef1902d93

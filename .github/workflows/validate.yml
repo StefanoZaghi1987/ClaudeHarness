@@ -1,0 +1,9 @@
+name: validate
+on: [push, pull_request]
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: python3 build_release.py dev
+      - run: bash skills/skills-resync/scripts/resync.sh --self-test

@@ -1,0 +1,12 @@
+diff -ruN --strip-trailing-cr a/SKILL.md b/SKILL.md
+--- a/SKILL.md
++++ b/SKILL.md
+@@ -199,7 +199,7 @@
+ 
+ ### Phase 4: Implement
+ 
+-Execute tasks one at a time following `skills/incremental-implementation/SKILL.md` (`incremental-implementation`) and `skills/test-driven-development/SKILL.md` (`test-driven-development`). Use `skills/context-engineering/SKILL.md` (`context-engineering`) to load the right spec sections and source files at each step rather than flooding the agent with the entire spec.
++Execute tasks one at a time, test-first: write the failing test, watch it fail for the expected reason, then make it pass. Load only the spec sections and source files each task needs rather than flooding the agent with the entire spec.
+ 
+ ## Keeping the Spec Alive
+ 
