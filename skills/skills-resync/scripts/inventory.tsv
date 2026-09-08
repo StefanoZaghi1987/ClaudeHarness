@@ -2,11 +2,22 @@
 # copied from, and the upstream tree hash it was copied at.
 #
 #   skill <TAB> plugin@marketplace <TAB> subpath-under-plugin <TAB> baseline (tree hash)
+#         [<TAB> dest, relative to $SKILLS_DIR - omit for a skill, which vendors into its own name]
+#
+# The optional 5th column is what lets a row vendor something that is not a skill. Only the shared
+# `references/` tree uses it: the agent-skills bodies cite `../../references/<file>.md`, which from
+# ~/.claude/skills/<skill>/SKILL.md resolves to ~/.claude/references/ - so `../references` here
+# makes every one of those pointers resolve with no path edit and no patch. Relative on purpose:
+# the inventory stays machine-independent.
 #
 # No version directory appears here on purpose. resync.sh resolves upstream from the
 # marketplace clone under plugins/marketplaces/ (NOT the install cache, which is frozen for
 # disabled plugins), following the source kind the marketplace catalog records. See SKILL.md
 # "Upstream resolution".
+#
+# A new row is authored with `-` as its baseline: that is what marks it never-vendored, so --check
+# reports it `unvendored` (APPLIABLE) and --apply performs the initial copy and writes the real
+# hash. A missing directory under a *real* baseline is a copy that was lost, and stays BLOCKED.
 #
 # The baseline is a per-skill hash of the upstream skill directory, not a plugin commit sha:
 # a commit elsewhere in the plugin no longer reads as "this skill moved". `--hash <dir>`
@@ -20,23 +31,29 @@
 # not configuration to reproduce. Point $INVENTORY at your own file (or start from an
 # empty one) to manage a different set of vendored skills.
 #
+references	agent-skills@addy-agent-skills	references	3593ea9271f40925	../references
 code-review-and-quality	agent-skills@addy-agent-skills	skills/code-review-and-quality	57574227c803c4a1
 code-simplification	agent-skills@addy-agent-skills	skills/code-simplification	a6d4aba8358a4663
-context-engineering	agent-skills@addy-agent-skills	skills/context-engineering	cef1aaff58296275
-documentation-and-adrs	agent-skills@addy-agent-skills	skills/documentation-and-adrs	f6161596cab00499
-doubt-driven-development	agent-skills@addy-agent-skills	skills/doubt-driven-development	3141d5fdd8449ee5
+context-engineering	agent-skills@addy-agent-skills	skills/context-engineering	1b1eaf6dd53e1166
+documentation-and-adrs	agent-skills@addy-agent-skills	skills/documentation-and-adrs	cc6700698ab202af
+doubt-driven-development	agent-skills@addy-agent-skills	skills/doubt-driven-development	939cf884cb25b766
 idea-refine	agent-skills@addy-agent-skills	skills/idea-refine	c999f1db0b62f009
-incremental-implementation	agent-skills@addy-agent-skills	skills/incremental-implementation	100e4d5820fae9be
+incremental-implementation	agent-skills@addy-agent-skills	skills/incremental-implementation	037857b2d81c5e70
 interview-me	agent-skills@addy-agent-skills	skills/interview-me	f271a5931d374e3a
-planning-and-task-breakdown	agent-skills@addy-agent-skills	skills/planning-and-task-breakdown	995b7bffd6108169
-security-and-hardening	agent-skills@addy-agent-skills	skills/security-and-hardening	75cfb5af75bbb4a1
-spec-driven-development	agent-skills@addy-agent-skills	skills/spec-driven-development	78280eeb6945cf6d
+planning-and-task-breakdown	agent-skills@addy-agent-skills	skills/planning-and-task-breakdown	34768342dbf3b84e
+security-and-hardening	agent-skills@addy-agent-skills	skills/security-and-hardening	57474a1f930788f4
+spec-driven-development	agent-skills@addy-agent-skills	skills/spec-driven-development	5a0b7c7f78a3c8ea
 diagnosing-bugs	mattpocock-skills@claude-plugins-official	skills/engineering/diagnosing-bugs	3eaddfa5b028a2d4
 grilling	mattpocock-skills@claude-plugins-official	skills/productivity/grilling	d5833e50e0081bbf
 handoff	mattpocock-skills@claude-plugins-official	skills/productivity/handoff	fe287d0ae54ed66c
 wait-what	mattpocock-skills@claude-plugins-official	skills/productivity/wait-what	d8c5157780c8b493
 wayfinder	mattpocock-skills@claude-plugins-official	skills/engineering/wayfinder	fa164901a041cab3
 writing-for-agents	mattpocock-skills@claude-plugins-official	skills/productivity/writing-for-agents	dc53f07d1f662137
+codebase-design	mattpocock-skills@claude-plugins-official	skills/engineering/codebase-design	826e65f8d718794b
+domain-modeling	mattpocock-skills@claude-plugins-official	skills/engineering/domain-modeling	2cc88b237a4704f9
+improve-codebase-architecture	mattpocock-skills@claude-plugins-official	skills/engineering/improve-codebase-architecture	86096700ab48a5fb
+prototype	mattpocock-skills@claude-plugins-official	skills/engineering/prototype	c4efd5e0f1c302b6
+research	mattpocock-skills@claude-plugins-official	skills/engineering/research	b1976e3b4a7cdcee
 brainstorming	superpowers@claude-plugins-official	skills/brainstorming	3a59b10c026dfa63
 dispatching-parallel-agents	superpowers@claude-plugins-official	skills/dispatching-parallel-agents	1acb899b23c2bdb5
 executing-plans	superpowers@claude-plugins-official	skills/executing-plans	5036191743cbb55b

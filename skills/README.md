@@ -80,7 +80,12 @@ marketplace, path inside the plugin, and the upstream state each copy was taken 
 ships as a **worked example of the format, not as configuration to reproduce**: point the
 `INVENTORY` environment variable at your own file to manage a different set.
 
-Twenty-eight skills, from six plugins, grouped here by the workflow phase they serve.
+Thirty-three skills, from six plugins, grouped here by the workflow phase they serve.
+
+One row in that file is not a skill: `agent-skills` keeps four checklists at its repo root and
+five of the skills below cite them as `../../references/<file>.md`. Vendored, that same relative
+path resolves to `~/.claude/references/`, so the directory is kept in sync there and every
+pointer resolves untouched.
 
 ### Phase 1 — Brainstorm
 
@@ -91,6 +96,8 @@ Twenty-eight skills, from six plugins, grouped here by the workflow phase they s
 | `grilling` | `mattpocock-skills` | Grills you relentlessly about a plan, decision, or idea. For when you want your own thinking stress-tested. |
 | `brainstorming` | `superpowers` | Turns ideas into fully formed designs and specs through collaborative dialogue. It first classifies how much process the request needs, then follows that path. |
 | `wayfinder` | `mattpocock-skills` | Plans a chunk of work larger than one agent session as a shared map of decision tickets on the issue tracker, then resolves them one at a time. |
+| `research` | `mattpocock-skills` | Investigates a question against high-trust primary sources and captures the findings as a Markdown file in the repo. Dispatched by `wayfinder` to resolve a ticket a decision waits on. |
+| `prototype` | `mattpocock-skills` | Builds a throwaway prototype — a stub, an outline, rough UI or logic code — to answer a design question with something concrete to react to. Also dispatched by `wayfinder`. |
 
 ### Phase 2 — Specify
 
@@ -98,6 +105,7 @@ Twenty-eight skills, from six plugins, grouped here by the workflow phase they s
 |---|---|---|
 | `spec-driven-development` | `agent-skills` | Creates specs before coding. When a single requirement spans several independently testable capabilities, it decomposes them into a capability map of modules. |
 | `documentation-and-adrs` | `agent-skills` | Records decisions and documentation — architectural decisions, public API changes, shipped features, and context future engineers will need. |
+| `domain-modeling` | `mattpocock-skills` | Actively builds and sharpens the project's domain model: challenges terms, invents edge cases, and writes the glossary and decisions down as they crystallise. Dispatched by `wayfinder` and by `improve-codebase-architecture`. |
 
 ### Phase 3 — Plan
 
@@ -123,6 +131,8 @@ Twenty-eight skills, from six plugins, grouped here by the workflow phase they s
 |---|---|---|
 | `code-review-and-quality` | `agent-skills` | Conducts a multi-axis code review before merging any change — code written by you, by another agent, or by a person. |
 | `code-simplification` | `agent-skills` | Simplifies code for clarity without changing behaviour, for code that works but is harder to read than it should be. |
+| `codebase-design` | `mattpocock-skills` | The shared vocabulary for deep modules — depth, seam, adapter, leverage, locality — plus the deletion test and the design-it-twice pattern. Other skills call it for the terms. |
+| `improve-codebase-architecture` | `mattpocock-skills` | Scans a codebase for deepening opportunities, presents them as a visual HTML report, then grills through whichever one you pick. Slash-only. |
 
 The phase also closes out with `documentation-and-adrs` (listed under Phase 2, since it
 serves both) and `handoff` (listed under *Any moment*), plus `consolidate-specs` and
@@ -168,8 +178,8 @@ The cost is that you install every skill in that plugin, and **every installed s
 the context window in every turn** — including the ones you never use, and including inside
 every subagent, which inherits the same weight.
 
-That cost is the reason this repository exists. Six plugins hold far more than 28 skills.
-Taking 28 of them and leaving the rest is a deliberate reduction, not an accident.
+That cost is the reason this repository exists. Six plugins hold far more than 33 skills.
+Taking 33 of them and leaving the rest is a deliberate reduction, not an accident.
 
 **Vendor the skill.** Copy the one skill you want into `~/.claude/skills/` and disable the
 plugin. You pay context only for what you chose, and your copy survives the plugin being
@@ -200,9 +210,9 @@ practice: the plugin was read, and most of it was declined.
 
 **`grill-me` and `grill-with-docs` were evaluated and rejected as routers, not skills.** The
 entire body of `grill-me` is an instruction to call `grilling`, which is already vendored —
-so it would add context weight and no capability. `grill-with-docs` dispatches to `grilling`
-and to `domain-modeling`, and `domain-modeling` is not vendored, so half of its dispatch
-would dangle.
+so it would add context weight and no capability. `grill-with-docs` adds only a dispatch to
+`domain-modeling` alongside it; both targets are vendored now, so neither router dangles any
+more — and neither earns a row, because invoking the two skills directly is all they do.
 
 **`code-review` is a command, not a skill.** Its plugin ships no skill at all, so it lives in
 `~/.claude/commands/` instead, outside the inventory. The `code-reviewer` subagent covers the

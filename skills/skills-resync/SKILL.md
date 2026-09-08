@@ -24,7 +24,11 @@ Never write before the user confirms.
 hash** it was vendored at (a per-skill hash of the upstream skill directory, not a plugin commit
 sha — see *Upstream resolution*). The script resolves the upstream from the marketplace clone, so
 no version directory is recorded anywhere. The baseline column is rewritten by `--apply`;
-hand-editing it makes `--check` lie in both directions.
+hand-editing it makes `--check` lie in both directions — with one exception: **a new row is
+authored with `-` as its baseline**. That is what marks it never-vendored, so `--check` reports it
+`unvendored` and `--apply` performs the initial copy and writes the real hash. An optional 5th
+column names a destination relative to `~/.claude/skills`, for the one row that vendors something
+that is not a skill — see *The shared references* below.
 
 `scripts/patches/<skill>.patch` — the protected local edits themselves, as a patch `--apply` replays
 onto each fresh vendor. Generated only by `--snapshot`, never by hand. This is what makes a
@@ -65,9 +69,17 @@ rejects and you have to decide what the edit should become against the rewritten
   restore it. The same string in `build-mcp-app/SKILL.md` is correct — leave it alone.
 - **L6 — the invocation regime is local state, never upstream state.** `disable-model-invocation:
   true` is a **functional dependency, not a preference**: without it the skill pays its description
-  in every turn, and the trigger collisions `~/.claude/CLAUDE.md` exists to resolve come back —
-  `idea-refine` and `brainstorming` both firing on a formless idea, on top of `interview-me` and
-  `grilling`, which are model-invoked by design and already overlap on "stress-test my thinking".
+  in every turn, and the trigger collisions come back — `idea-refine` and `brainstorming` both
+  firing on a formless idea, on top of `interview-me` and `grilling`, which are model-invoked by
+  design and already overlap on "stress-test my thinking".
+
+  **This list is the whole ruling. There is no global file behind it, and there must not be one.**
+  A `~/.claude/CLAUDE.md` or a new `rules/` file would load the ruling into every session and every
+  subagent to serve a decision only a resync ever makes. The rule itself: **demote a skill the
+  moment a second skill claims the same opening move; a shared clause is not a collision.**
+  `domain-modeling` and `documentation-and-adrs` both handle ADRs and both stay model-invoked —
+  they overlap on one clause and diverge everywhere else, and neither tries to drive the same
+  conversation. `idea-refine` and `brainstorming` did.
 
   **The script owns this one, and only this one path owns it.** `--apply` records the line before
   the swap and re-inserts it inside the new frontmatter afterwards; `--snapshot` strips it from
@@ -77,11 +89,19 @@ rejects and you have to decide what the edit should become against the rewritten
 
   Because the diff ignores the line, `--check` reports it as its own `REGIME` column instead. That
   column is the only thing that catches an L6 lost out of band, so reconcile the count:
-  **19 = 12 locally added + 3 flagged upstream + 4 originals with no upstream**, printed as 15
-  mapped + 4 unmapped. `handoff`, `wayfinder` and `wait-what` ship the line upstream, so
-  it is not a local edit there: neither re-add it nor strip it. `code-simplification`,
+  **18 = 16 mapped + 2 of the 4 unmapped**, where the 16 is **12 locally added + 4 flagged
+  upstream**. `handoff`, `wayfinder`, `wait-what` and `improve-codebase-architecture` ship the line
+  upstream, so it is not a local edit there: neither re-add it nor strip it. The denominator counts
+  skill rows only — the `references` row has no frontmatter and no regime. `code-simplification`,
   `incremental-implementation` and `interview-me` were deliberately promoted back to model-invoked
   and are byte-identical to upstream — an absent flag on those three is the intended state.
+
+  Only 2 of the 4 unmapped originals are slash-only, and that is deliberate: `model-config-sync`
+  and `skills-resync` declare themselves manual maintenance tasks, while `consolidate-comments` and
+  `consolidate-specs` trigger on workflow moments ("at feature or epic completion") and must stay
+  model-invoked to reach them. `--check` prints `+ 4 unmapped` because it counts the unmapped
+  *names* and never reads their regime — so reconcile those 2 against this sentence, never against
+  that line.
 
   The regime test is scoped to the **frontmatter** (`has_regime`), not a whole-file grep:
   `claude-automation-recommender` documents `disable-model-invocation: true` in its body as an
@@ -97,21 +117,18 @@ rejects and you have to decide what the edit should become against the rewritten
   deliberately dropped. Do not vendor them back in to "fix" L3.
 - **`grill-me` and `grill-with-docs` were evaluated and deliberately not vendored.** Both are
   routers, not skills: `grill-me`'s whole body is `Call the Skill tool with "grilling"` — a pure
-  alias of the already-vendored `grilling` — and `grill-with-docs` dispatches to `grilling` and
-  `domain-modeling`, which is not vendored, so half its dispatch would dangle. Do not vendor them
-  back in for symmetry.
+  alias of the already-vendored `grilling`, and `grill-with-docs` adds only a dispatch to
+  `domain-modeling` alongside it. Both dispatch targets are now vendored, so neither router would
+  dangle any more — they are still not worth a row, because invoking the two skills directly is the
+  whole of what they do. Do not vendor them back in for symmetry.
 - **The three `build-mcp-*` skills are one unit — never re-vendor a subset.** They cross-reference
   each other with sibling-relative paths (`../build-mcp-server/references/elicitation.md` in
   `build-mcp-app/SKILL.md`). That path resolves only while all three sit as siblings under
   `~/.claude/skills/`. Re-vendoring one alone breaks it silently.
-- **`claude-automation-recommender`, `skill-creator` and the three `build-mcp-*`** were vendored
-  **with their `references/` directories**, unlike the earlier groups — which is why six dangling
-  `references/*.md` pointers survive in `agent-skills`: `performance-checklist.md` and
-  `security-checklist.md` in `code-review-and-quality`, `security-checklist.md` in
-  `security-and-hardening`, `orchestration-patterns.md` in `doubt-driven-development`, and
-  `definition-of-done.md` in both `incremental-implementation` and `planning-and-task-breakdown`.
-  They are inert and `~/.claude/CLAUDE.md` already rules on them: say so and continue, never invent
-  the contents.
+- **`claude-automation-recommender`, `skill-creator` and the three `build-mcp-*`** carry their own
+  per-skill `references/` directories and were vendored with them. Those are *inside* the skill and
+  need no special handling; the `agent-skills` group's references are shared and sit outside it —
+  the row below.
 - **`interview-me` has two upstream candidates.** It is vendored from `agent-skills`, which is what
   the inventory records. A stale `sorbh/interview-me/1.6.0` clone also sits in the plugin cache
   although that plugin is no longer in `installed_plugins.json`; its copy is *not* the vendored one.
@@ -129,6 +146,69 @@ rejects and you have to decide what the edit should become against the rewritten
 - **The four `UNMAPPED` skills are originals with no upstream** — `consolidate-comments`,
   `consolidate-specs`, `model-config-sync`, `skills-resync`. Any *other* name in that line is a
   skill vendored without an inventory row, and needs one.
+
+## The shared references
+
+`agent-skills` keeps four checklists **outside** every skill, at the repo root, and five vendored
+bodies cite them across eight sites: `security-checklist.md` (`code-review-and-quality`,
+`security-and-hardening` ×4), `performance-checklist.md` (`code-review-and-quality`),
+`orchestration-patterns.md` (`doubt-driven-development` ×2) and `definition-of-done.md`
+(`incremental-implementation`, `planning-and-task-breakdown`). `orchestration-patterns.md` is cited
+as the *authority* for a rule the skill enforces ("personas do not invoke other personas"), not as
+a further-reading link, so these are load-bearing.
+
+Every citation is written `../../references/<file>.md`. Upstream that resolves from
+`<repo>/skills/<skill>/SKILL.md` to `<repo>/references/`; vendored, the identical relative path
+resolves from `~/.claude/skills/<skill>/SKILL.md` to **`~/.claude/references/`**. So the directory
+is vendored there and **every pointer resolves untouched** — no path rewrite, no patch, and nothing
+to reconcile if upstream adds a fifth citation. That is why this is a `dest` column and not an L-flag.
+
+The **whole** upstream directory is vendored, not the four cited files. A per-file subset would need
+tracking machinery the tree hash already provides for free, and the three uncited files
+(`accessibility-checklist.md`, `observability-checklist.md`, `testing-patterns.md`) cost nothing:
+nothing loads them unless a body points at them.
+
+The row is `references … ../references`. It is the only row with a `dest`, it has no `SKILL.md`,
+carries no invocation regime, and is excluded from the `REGIME` denominator. **One level up is the
+limit.** `dest` becomes the argument to `mv` and, on rollback, to `rm -rf`, so a dest that
+normalises outside the skills root's parent — `../../x`, `..`, anything absolute — is refused as
+`bad-dest` and the row goes to BLOCKED. It is a typo guard, not a threat model: the file is
+hand-edited, and a home directory sits one hop past the legal destination. Treat it as a
+dependency of the five skills above it, not as a peer: re-vendoring those five while leaving this
+one behind re-opens eight dangling pointers, and `--check` reports it in the same run.
+
+## The mattpocock engineering group
+
+`codebase-design`, `domain-modeling`, `prototype`, `research` and `improve-codebase-architecture`
+were vendored to close a hole that predates them: `wayfinder`, vendored since before, carries
+**seven executable `Call the Skill tool with …` dispatches** to `research`, `prototype` and
+`domain-modeling` — instructions, not prose, and every one of them dangled.
+
+Their invocation regime is decided by that dispatch graph, not by taste. **A skill carrying
+`disable-model-invocation: true` cannot be reached by another skill** — the same constraint L2
+records for `context-engineering`. So every dispatch *target* stays model-invocable:
+
+| skill | dispatched by | regime |
+|---|---|---|
+| `research`, `prototype` | `wayfinder` | model-invocable — required |
+| `domain-modeling` | `wayfinder`, `improve-codebase-architecture` | model-invocable — required |
+| `codebase-design` | `improve-codebase-architecture` | model-invocable — required |
+| `improve-codebase-architecture` | nothing | slash-only, **and upstream already ships the line** |
+
+So the group adds **no L6 edit at all**: the four that must stay reachable are byte-identical to
+upstream, and the one that should not be model-invoked was already flagged by its author. Nothing
+here is maintained by hand. All five carry only bare-name cross-references (`grilling`,
+`codebase-design`, `domain-modeling`), every one of which now resolves, so **no patches** either.
+
+**`domain-modeling` and `documentation-and-adrs` overlap on ADRs, and both stay.** Ruled
+2026-09-08, and recorded here so it is not reopened. They share one clause and nothing else:
+`domain-modeling` owns terminology and `CONTEXT.md`, `documentation-and-adrs` owns public API
+changes and shipped features, and `WORKFLOW.md` names the latter four times. Neither can be
+dropped, and by L6's rule a shared clause is not a collision. Demoting `domain-modeling` is worse
+than the overlap: it would silently break the 8 dispatch sites in `wayfinder` and
+`improve-codebase-architecture`, and nothing in `--check` would show it. Editing its description is
+worse still — ADR work is not incidental to it, the skill ships its own `ADR-FORMAT.md`, and the
+edit would become a permanent patch that fights upstream at every re-vendor.
 
 Bare-name cross-references to non-vendored skills (`source-driven-development`,
 `api-and-interface-design`, `deprecation-and-migration`, `shipping-and-launch`,
@@ -152,9 +232,9 @@ pointers. They are inert and accepted. Flag one only if it becomes an executable
    |---|---|---|
    | `identical` / `local-only` | no drift, or a local edit with a current patch | none |
    | `REVIEW` | a local edit that is `unsnapshotted` or `patch-stale` | step 2 |
-   | `APPLIABLE` | upstream moved; any local edit has a patch to replay | steps 3–4 |
+   | `APPLIABLE` | upstream moved, or the row is `unvendored` (new, baseline `-`) | steps 3–4 |
    | `REFRESH` | upstream content is not on disk (a mirror missing or cache swept) | step 0 |
-   | `BLOCKED` | not vendored, or upstream gone | by hand, one at a time |
+   | `BLOCKED` | not vendored, upstream gone, or a `dest` that escapes | by hand, one at a time |
 
    `local-only` with a current patch is silent and healthy — the edit is captured, so a later
    re-vendor replays it. Never infer a bucket from diff size: a large diff on an unchanged tree
@@ -169,7 +249,8 @@ pointers. They are inert and accepted. Flag one only if it becomes an executable
    a subset if the user names one. `BLOCKED` skills are never included.
 4. On confirmation, **`bash scripts/resync.sh --apply <skill> …`** runs the rest unattended. It
    stages from upstream, verifies the staged copy is byte-identical, backs the live directory up
-   inside a `mktemp -d`, swaps wholesale — a merge would leave behind stale files that an upstream
+   inside a `mktemp -d` (an `unvendored` row has none to back up, and a failure removes the new
+   copy instead of restoring one), swaps wholesale — a merge would leave behind stale files that an upstream
    deletion should have removed, and that no later diff would catch — restores L6, replays the
    skill's patch, **verifies the live tree equals upstream+patch**, rebases the baseline, and sweeps
    every leftover. Nothing under `~/.claude/skills` is touched until a verified copy exists, and a
@@ -193,8 +274,8 @@ pointers. They are inert and accepted. Flag one only if it becomes an executable
 8. Report what was written, what was skipped, and what is still blocked.
 
 `--self-test` exercises the replace, stale-file, missing-upstream, regime-restore, patch-replay,
-reject-rollback, baseline-rebase, mainline-update and body-mention paths in a scratch directory,
-touching nothing real. Run it after editing the script.
+reject-rollback, baseline-rebase, mainline-update, body-mention and initial-vendor/`dest` paths in a
+scratch directory, touching nothing real. Run it after editing the script.
 
 Recommended cadence: monthly, or when a skill behaves unexpectedly.
 

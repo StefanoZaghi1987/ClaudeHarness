@@ -38,6 +38,10 @@ REGIME='disable-model-invocation: true'
 # if a body line ever appears in exactly this form.
 REGIME_RE='^disable-model-invocation: *true *$'
 
+# Record separator for every resolved row on the wire. It has to be a non-whitespace character:
+# see the note in py_helper's output block - tab collapses empty fields and silently shifts a row.
+US=$'\x1f'
+
 # Frontmatter only, tolerating CRLF: fence 1 opens it, fence 2 ends the search.
 has_regime() {                      # $1 SKILL.md
   [ -f "$1" ] || return 1
@@ -178,7 +182,19 @@ for line in open(inventory, encoding='utf-8'):
     if len(f) < 4:
         continue
     skill, pid, sub, base = f[0], f[1], f[2], f[3]
+    # Optional 5th column: where the vendored copy lives, relative to $SKILLS_DIR. Empty means the
+    # skill's own directory. It is relative on purpose - the inventory stays machine-independent,
+    # and `../references` reads as the same hop the citing SKILL.md makes with `../../references/`.
+    dest = f[4] if len(f) > 4 else ''
     root, note, spec = resolve(pid)
+    # dest is hand-written and ends up as the argument to `mv` and, on rollback, `rm -rf`. One
+    # level up is the whole point (`../references`); two is a typo with a home directory at the
+    # other end of it. Probe it against a two-segment fake root: `a/b` stands for
+    # <parent>/<skills>, so a legal dest normalises to something strictly inside `a`.
+    if dest:
+        probe = os.path.normpath(os.path.join('a', 'b', dest))
+        if not probe.startswith('a' + os.sep) or probe == 'a':
+            note = 'bad-dest|%s escapes the skills root parent - refusing to touch it' % dest
     if spec and spec not in specs:
         specs.append(spec)
     up = os.path.join(root, sub) if root else ''
@@ -186,31 +202,41 @@ for line in open(inventory, encoding='utf-8'):
         up, note = '', 'upstream-missing|%s not present under %s' % (sub, root)
     # Forward slashes only: a mixed C:/a\b path is what os.path.join produces on Windows, and
     # cygpath silently mistranslates it.
-    rows.append([skill, pid, sub, base, up.replace('\\', '/'), tree_hash(up), note])
+    rows.append([skill, pid, sub, base, up.replace('\\', '/'), tree_hash(up), note, dest])
 
 if mode == 'mirrors':
     for pid, url, pin in specs:
         print('\t'.join([pid, url, pin]))
 else:
+    # \x1f, not \t: tab is IFS *whitespace*, so bash's `read` collapses a run of tabs into
+    # one delimiter and an empty field mid-record shifts every field after it left by one.
+    # Exactly one of up/note is empty on every row, so a tab-separated record misparses on
+    # every unresolvable row - which is why refresh-needed and upstream-missing never classified.
     for r in rows:
-        print('\t'.join(r))
+        print('\x1f'.join(r))
 PY
 }
 
-# Emits: skill \t plugin \t subpath \t baseline \t upstream-dir \t upstream-hash \t note
+# Emits, US-separated (see $US): skill, plugin, subpath, baseline, upstream-dir, upstream-hash,
+# note, live-dir.
 # upstream-dir is empty exactly when note is set. Paths come back native and are converted here,
 # because MSYS mangles argv into Windows form on the way in but leaves stdout alone.
+#
+# live-dir is resolved here, once, so no caller ever composes $SKILLS_DIR/$skill itself: the
+# inventory's optional dest column is what lets a row vendor something that is not a skill and does
+# not live under $SKILLS_DIR - the shared references/ tree the agent-skills bodies cite.
 inventory_resolved() {
-  local skill pid sub base up hash note
+  local skill pid sub base up hash note dest
   py_helper resolve "$INVENTORY" "$PLUGINS_JSON" "$MARKETPLACES" "$MIRRORS" \
-  | while IFS=$'\t' read -r skill pid sub base up hash note; do
+  | while IFS=$US read -r skill pid sub base up hash note dest; do
       [ -n "$up" ] && up=$(cygpath -u "$up" 2>/dev/null || echo "$up")
-      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$skill" "$pid" "$sub" "$base" "$up" "$hash" "$note"
+      printf "%s$US%s$US%s$US%s$US%s$US%s$US%s$US%s\n" \
+             "$skill" "$pid" "$sub" "$base" "$up" "$hash" "$note" "$SKILLS_DIR/${dest:-$skill}"
     done
 }
 
 lookup() {                          # $1 skill -> resolved row, or exit 1
-  inventory_resolved | grep -P "^$1\t" || return 1
+  inventory_resolved | grep -P "^$1\x1f" || return 1
 }
 
 # Empty output means "no difference beyond the regime line". --strip-trailing-cr is mandatory:
@@ -328,25 +354,35 @@ replay_patch() {                    # $1 skill  $2 live-dir
 # Two inputs decide the state jointly: the upstream tree hash against the baseline says whether
 # upstream moved, the diff says what a re-vendor would change. Never infer either from diff size.
 check() {
-  local skill pid sub base up hash note state d n r pf
+  local skill pid sub base up hash note live state d n r pf
   local appliable='' review='' blocked='' stale='' regimes=0
   printf '%-32s %-6s %s\n' SKILL REGIME 'STATE / DETAIL'
-  while IFS=$'\t' read -r skill pid sub base up hash note; do
+  while IFS=$US read -r skill pid sub base up hash note live; do
     pf=$(patch_file "$skill")
     # The diff ignores the regime line, so report it separately: without this a skill that lost
     # its L6 flag out of band would read as identical, which is the one failure this whole skill
     # exists to catch. Reported, not asserted - a deliberate promotion needs no bookkeeping.
-    if has_regime "$SKILLS_DIR/$skill/SKILL.md" 2>/dev/null; then
+    if has_regime "$live/SKILL.md" 2>/dev/null; then
       r='slash'; regimes=$((regimes + 1))
     else
       r='-'
     fi
-    if [ ! -d "$SKILLS_DIR/$skill" ]; then
-      state=not-vendored; d="no $SKILLS_DIR/$skill"
-    elif [ -n "$note" ]; then
+    # The note outranks a missing directory: a new row whose upstream is unresolvable is
+    # REFRESH or BLOCKED, not APPLIABLE, and reporting it appliable puts a row the user cannot
+    # apply into the one list they authorise from.
+    if [ -n "$note" ]; then
       state=${note%%|*}; d=${note#*|}
+    elif [ ! -d "$live" ]; then
+      # A `-` baseline is how a row is authored before its first vendor, so a missing directory
+      # there is the intended state and --apply installs it. A missing directory under a *real*
+      # baseline is a copy that disappeared, which is not something to overwrite unasked.
+      if [ "$base" = '-' ]; then
+        state=unvendored;   d="new row - --apply will vendor it into $live"
+      else
+        state=not-vendored; d="no $live"
+      fi
     else
-      n=$(drift_diff "$up" "$SKILLS_DIR/$skill" | grep -c . || true)
+      n=$(drift_diff "$up" "$live" | grep -c . || true)
       if [ "$base" = "$hash" ]; then
         if [ "$n" -eq 0 ]; then
           state=identical; d=''
@@ -354,7 +390,7 @@ check() {
           # Upstream is at the baseline, so this diff is unambiguously a local edit - and this is
           # the only window in which it is. Capture it now or the next upstream move eats it.
           state=unsnapshotted; d="$n diff lines, no patch - run --snapshot $skill"
-        elif [ -n "$(diff -q <(gen_patch "$up" "$SKILLS_DIR/$skill") "$pf" 2>&1)" ]; then
+        elif [ -n "$(diff -q <(gen_patch "$up" "$live") "$pf" 2>&1)" ]; then
           state=patch-stale;  d="local edits changed since snapshot - re-run --snapshot $skill"
         else
           state=local-only;   d="$n diff lines, upstream at baseline, patch current"
@@ -373,7 +409,7 @@ check() {
     fi
     printf '%-32s %-6s %s\n' "$skill" "$r" "$state${d:+  $d}"
     case $state in
-      upstream-changed)            appliable+=" $skill" ;;
+      upstream-changed|unvendored) appliable+=" $skill" ;;
       unsnapshotted|patch-stale)   review+=" $skill" ;;
       refresh-needed)              stale+=" $skill" ;;
       identical|local-only)        ;;
@@ -393,20 +429,25 @@ check() {
     <(cd "$SKILLS_DIR" && ls -d */ 2>/dev/null | tr -d /  | sort) \
     <(cut -f1 "$INVENTORY" | grep -v '^#' | grep . | sort))
   echo "UNMAPPED: $(echo $unmapped)   # expected: the originals with no upstream"
-  echo "REGIME: $regimes of $(grep -cvE '^#|^$' "$INVENTORY") mapped skills are slash-only" \
-       "(+ $(echo $unmapped | wc -w) unmapped) - reconcile against SKILL.md L6"
+  # Denominator counts rows with no dest override only: a dest row vendors a shared asset tree, has
+  # no SKILL.md and no invocation regime, so counting it would inflate the figure L6 reconciles.
+  echo "REGIME: $regimes of $(awk -F'\t' '!/^#/ && NF>=4 && $5=="" {n++} END{print n+0}' "$INVENTORY")" \
+       "mapped skills are slash-only (+ $(echo $unmapped | wc -w) unmapped) - reconcile against SKILL.md L6"
 }
 
 # --- apply -------------------------------------------------------------------------------------
 # Stage, verify, back up, swap. Nothing under $SKILLS_DIR is touched until a verified copy exists,
 # so a failed copy can never leave a skill half-written. Replacement is wholesale, not a merge: a
 # stale file left behind by an upstream deletion is drift no later diff would catch.
-apply_one() {                       # $1 skill  $2 upstream  $3 work
-  local skill=$1 up=$2 work=$3
-  local live="$SKILLS_DIR/$skill" stage="$work/stage/$skill" backup="$work/backup/$skill" regime=no patched=''
+apply_one() {                       # $1 skill  $2 upstream  $3 work  $4 live dir
+  local skill=$1 up=$2 work=$3 live=$4
+  local stage="$work/stage/$skill" backup="$work/backup/$skill" regime=no patched='' fresh=''
 
-  [ -d "$up" ]   || { echo "  $skill: upstream missing ($up)" >&2; return 1; }
-  [ -d "$live" ] || { echo "  $skill: not vendored locally ($live)" >&2; return 1; }
+  [ -d "$up" ] || { echo "  $skill: upstream missing ($up)" >&2; return 1; }
+  # An absent live directory is the initial vendor of a new inventory row, not an error: there is
+  # simply nothing to back up, so a later failure removes the new copy instead of restoring one.
+  # check() has already refused this for a row carrying a real baseline, where absence means loss.
+  [ -d "$live" ] || fresh=yes
 
   # `grep && regime=yes` would return non-zero for a skill with no regime line, which under set -e
   # aborts apply_one before it stages anything whenever it is called outside a condition.
@@ -419,10 +460,11 @@ apply_one() {                       # $1 skill  $2 upstream  $3 work
     echo "  $skill: staged copy does not match upstream, nothing changed" >&2; return 1
   fi
 
-  mv "$live" "$backup"
+  [ -n "$fresh" ] || mv "$live" "$backup"
+  mkdir -p "$(dirname "$live")"
   if ! mv "$stage" "$live"; then
-    mv "$backup" "$live"
-    echo "  $skill: swap failed, original restored" >&2; return 1
+    [ -n "$fresh" ] || mv "$backup" "$live"
+    echo "  $skill: swap failed, nothing changed" >&2; return 1
   fi
 
   if [ "$regime" = yes ] && ! has_regime "$live/SKILL.md"; then
@@ -437,7 +479,7 @@ apply_one() {                       # $1 skill  $2 upstream  $3 work
     if replay_patch "$skill" "$live" >"$work/patch.err" 2>&1; then
       patched=' +patch'
     else
-      rm -rf "$live"; mv "$backup" "$live"
+      rm -rf "$live"; [ -n "$fresh" ] || mv "$backup" "$live"
       echo "  $skill: local patch rejected, ROLLED BACK to the pre-apply copy" >&2
       sed 's/^/    /' "$work/patch.err" >&2
       echo "    upstream moved onto a protected edit - reconcile by hand, then --snapshot" >&2
@@ -449,11 +491,11 @@ apply_one() {                       # $1 skill  $2 upstream  $3 work
   # succeed with fuzz and place an edit on the wrong line, and a duplicated regime line applies
   # cleanly too - both read as success everywhere else. Checked here, while the backup still exists,
   # so exiting 0 means verified rather than merely attempted.
-  if ! verify_patch "$skill" "$up"; then
-    rm -rf "$live"; mv "$backup" "$live"
+  if ! verify_patch "$skill" "$up" "$live"; then
+    rm -rf "$live"; [ -n "$fresh" ] || mv "$backup" "$live"
     echo "  $skill: post-apply tree does not match upstream+patch, ROLLED BACK" >&2; return 1
   fi
-  echo "  $skill: written$([ "$regime" = yes ] && echo ' +regime')$patched +verified" >&2
+  echo "  $skill: ${fresh:+vendored (new) }written$([ "$regime" = yes ] && echo ' +regime')$patched +verified" >&2
 }
 
 # Re-insert L6 before the closing frontmatter fence. Tolerates CRLF, and refuses a file with no
@@ -478,7 +520,7 @@ inv, pairs = sys.argv[1], dict(a.split('=', 1) for a in sys.argv[2:])
 out = []
 for line in open(inv, encoding='utf-8').read().splitlines(True):
     f = line.rstrip('\n').split('\t')
-    if len(f) == 4 and f[0] in pairs:
+    if len(f) >= 4 and f[0] in pairs:
         f[3] = pairs[f[0]]
         line = '\t'.join(f) + '\n'
     out.append(line)
@@ -487,7 +529,7 @@ PY
 }
 
 apply() {
-  local work written=0 failed=0 rebase=() skill row base up hash note
+  local work written=0 failed=0 rebase=() skill row base up hash note live
   work=$(mktemp -d "${TMPDIR:-/tmp}/skills-resync-work-XXXXXX")
   # shellcheck disable=SC2064
   trap "rm -rf '$work'" EXIT        # fires on success, failure and interrupt alike
@@ -496,8 +538,8 @@ apply() {
     if ! row=$(lookup "$skill"); then
       echo "  $skill: not in inventory.tsv" >&2; failed=$((failed + 1)); continue
     fi
-    base=$(cut -f4 <<<"$row"); up=$(cut -f5 <<<"$row")
-    hash=$(cut -f6 <<<"$row"); note=$(cut -f7 <<<"$row")
+    base=$(cut -d"$US" -f4 <<<"$row"); up=$(cut -d"$US" -f5 <<<"$row")
+    hash=$(cut -d"$US" -f6 <<<"$row"); note=$(cut -d"$US" -f7 <<<"$row"); live=$(cut -d"$US" -f8 <<<"$row")
     if [ -n "$note" ]; then
       echo "  $skill: ${note%%|*} - ${note#*|}" >&2; failed=$((failed + 1)); continue
     fi
@@ -505,12 +547,19 @@ apply() {
     # replay it - and it is only *detectable* while upstream still sits at the baseline. Refuse
     # exactly that case. Comparing against a moved upstream instead would read the upstream change
     # itself as an uncaptured edit and refuse every unedited skill, which is the mainline update.
+    # `unvendored` is a `-` baseline and nothing else. Under a real baseline a missing directory
+    # is a copy that was lost, and apply_one would now happily re-create it over whatever removed
+    # it - so the rule check() reports is enforced here too, where the write actually happens.
+    if [ ! -d "$live" ] && [ "$base" != '-' ]; then
+      echo "  $skill: refused - $live is missing under baseline $base, so this is not a new row" >&2
+      failed=$((failed + 1)); continue
+    fi
     if [ "$base" = "$hash" ] && [ ! -f "$(patch_file "$skill")" ] \
-       && [ -n "$(drift_diff "$up" "$SKILLS_DIR/$skill")" ]; then
+       && [ -n "$(drift_diff "$up" "$live")" ]; then
       echo "  $skill: refused - uncaptured local edits (run --snapshot $skill first)" >&2
       failed=$((failed + 1)); continue
     fi
-    if apply_one "$skill" "$up" "$work"; then
+    if apply_one "$skill" "$up" "$work" "$live"; then
       written=$((written + 1)); rebase+=("$skill=$hash")
     else
       failed=$((failed + 1))
@@ -534,14 +583,14 @@ apply() {
 # upstream is off-baseline: the diff there mixes the local edit with the upstream change, and
 # snapshotting it would bake an upstream revert into the patch permanently.
 snapshot() {
-  local skill row up base hash note n; local rc=0
+  local skill row up base hash note live n; local rc=0
   mkdir -p "$PATCHES"
   for skill in "$@"; do
     if ! row=$(lookup "$skill"); then
       echo "  $skill: not in inventory.tsv" >&2; rc=1; continue
     fi
-    base=$(cut -f4 <<<"$row"); up=$(cut -f5 <<<"$row")
-    hash=$(cut -f6 <<<"$row"); note=$(cut -f7 <<<"$row")
+    base=$(cut -d"$US" -f4 <<<"$row"); up=$(cut -d"$US" -f5 <<<"$row")
+    hash=$(cut -d"$US" -f6 <<<"$row"); note=$(cut -d"$US" -f7 <<<"$row"); live=$(cut -d"$US" -f8 <<<"$row")
     if [ -n "$note" ]; then
       echo "  $skill: ${note%%|*} - ${note#*|}" >&2; rc=1; continue
     fi
@@ -549,14 +598,14 @@ snapshot() {
       echo "  $skill: refused - upstream moved to $hash; reconcile by hand first" >&2
       rc=1; continue
     fi
-    if [ -z "$(drift_diff "$up" "$SKILLS_DIR/$skill")" ]; then
+    if [ -z "$(drift_diff "$up" "$live")" ]; then
       rm -f "$(patch_file "$skill")"
       echo "  $skill: no local edits, patch removed"; continue
     fi
-    gen_patch "$up" "$SKILLS_DIR/$skill" > "$(patch_file "$skill")"
+    gen_patch "$up" "$live" > "$(patch_file "$skill")"
     # Prove it replays before trusting it: a patch that does not reproduce the live tree is worse
     # than none, because --check would then read the skill as protected when it is not.
-    if verify_patch "$skill" "$up"; then
+    if verify_patch "$skill" "$up" "$live"; then
       n=$(grep -c . "$(patch_file "$skill")" || true)
       echo "  $skill: snapshot written ($n lines), replay verified"
     else
@@ -568,11 +617,11 @@ snapshot() {
 }
 
 # Copy upstream, replay the patch, and require the result to equal the live tree.
-verify_patch() {                    # $1 skill  $2 upstream
+verify_patch() {                    # $1 skill  $2 upstream  $3 live dir
   local t ok=0; t=$(mktemp -d "${TMPDIR:-/tmp}/skills-resync-vfy-XXXXXX")
   cp -r "$2" "$t/x"
   replay_patch "$1" "$t/x" >/dev/null 2>&1 \
-    && [ -z "$(diff -r --strip-trailing-cr -I "$REGIME_RE" "$t/x" "$SKILLS_DIR/$1")" ] || ok=1
+    && [ -z "$(diff -r --strip-trailing-cr -I "$REGIME_RE" "$t/x" "$3")" ] || ok=1
   rm -rf "$t"
   return $ok
 }
@@ -636,7 +685,7 @@ self_test() {
   PATCHES="$root/patches"; mkdir -p "$PATCHES"
   printf 'demo\tp@m\tskills/demo\tOLDHASH123456\n' > "$INVENTORY"
 
-  apply_one demo "$root/up/demo" "$root/work" 2>/dev/null
+  apply_one demo "$root/up/demo" "$root/work" "$root/skills/demo" 2>/dev/null
   grep -q '^new$' "$root/skills/demo/SKILL.md" \
     || { echo "self-test FAIL: content not replaced" >&2; return 1; }
   [ ! -e "$root/skills/demo/dropped-upstream.md" ] \
@@ -654,7 +703,7 @@ self_test() {
 
   # A missing upstream must leave the live copy untouched.
   printf 'keep\n' > "$root/skills/demo/SKILL.md"
-  if apply_one demo "$root/up/absent" "$root/work" 2>/dev/null; then
+  if apply_one demo "$root/up/absent" "$root/work" "$root/skills/demo" 2>/dev/null; then
     echo "self-test FAIL: missing upstream reported success" >&2; return 1
   fi
   [ "$(cat "$root/skills/demo/SKILL.md")" = keep ] \
@@ -690,11 +739,11 @@ self_test() {
   demo_body keep-me    tail-v1     > "$root/up2/demo/SKILL.md"
   demo_body LOCAL-EDIT tail-v1 yes > "$root/skills2/demo/SKILL.md"
   gen_patch "$root/up2/demo" "$root/skills2/demo" > "$PATCHES/demo.patch"
-  verify_patch demo "$root/up2/demo" \
+  verify_patch demo "$root/up2/demo" "$root/skills2/demo" \
     || { echo "self-test FAIL: fresh snapshot does not replay" >&2; return 1; }
 
   demo_body keep-me tail-v2 > "$root/up2/demo/SKILL.md"
-  apply_one demo "$root/up2/demo" "$root/work2" 2>/dev/null \
+  apply_one demo "$root/up2/demo" "$root/work2" "$root/skills2/demo" 2>/dev/null \
     || { echo "self-test FAIL: apply with a replayable patch failed" >&2; return 1; }
   grep -q '^LOCAL-EDIT$' "$root/skills2/demo/SKILL.md" \
     || { echo "self-test FAIL: protected edit lost across re-vendor" >&2; return 1; }
@@ -713,7 +762,7 @@ self_test() {
   printf -- '---\nname: demo\n---\na\nb\nc\nLOCAL\ne\nf\ng\n' > "$root/skills3/demo/SKILL.md"
   gen_patch "$root/up3/demo" "$root/skills3/demo" > "$PATCHES/demo.patch"
   printf -- '---\nname: demo\n---\nQ\nR\nS\nT\nU\nV\nW\n' > "$root/up3/demo/SKILL.md"
-  if apply_one demo "$root/up3/demo" "$root/work3" 2>/dev/null; then
+  if apply_one demo "$root/up3/demo" "$root/work3" "$root/skills3/demo" 2>/dev/null; then
     echo "self-test FAIL: rejected patch reported success" >&2; return 1
   fi
   grep -q '^LOCAL$' "$root/skills3/demo/SKILL.md" \
@@ -762,6 +811,30 @@ self_test() {
   grep -q '^HAND-EDIT$' "$root/skills4/demo/SKILL.md" \
     || { echo "self-test FAIL: refused apply still touched the live copy" >&2; return 1; }
 
+  # An unresolvable upstream must classify, and must outrank a missing directory. This is the
+  # regression site for the record-separator bug: `up` is empty exactly when `note` is set, and
+  # under tab-separated records bash's `read` collapsed the gap and shifted every later field, so
+  # `note` arrived empty and the row fell through to a diff against a garbage path. Nothing else
+  # in this file exercises a row with an empty field in the middle.
+  printf 'ghost\tabsent@nomarket\tskills/ghost\t-\n' >> "$INVENTORY"
+  case "$(check)" in *'upstream-missing'*) ;;
+    *) echo "self-test FAIL: an unresolvable upstream does not classify" >&2; return 1 ;;
+  esac
+  case "$(check)" in *'APPLIABLE: ghost'*)
+        echo "self-test FAIL: a new row with no upstream is offered as APPLIABLE" >&2; return 1 ;;
+  esac
+  sed -i '/^ghost/d' "$INVENTORY"
+
+  # A vendored copy that disappeared under a real baseline is loss. check() reports it BLOCKED;
+  # apply() must refuse it too, because --apply takes a name directly and would otherwise
+  # re-create the directory over whatever removed it.
+  rm -rf "$root/skills4/demo"
+  if apply demo >/dev/null 2>&1; then
+    echo "self-test FAIL: apply re-created a copy lost under a real baseline" >&2; return 1
+  fi
+  [ ! -e "$root/skills4/demo" ] \
+    || { echo "self-test FAIL: refused apply wrote the directory anyway" >&2; return 1; }
+
   # --- a body prose mention must not read as the frontmatter flag ------------------------------
   # The regression: claude-automation-recommender documents `disable-model-invocation: true` in its
   # body. An unanchored whole-file grep matched that line, so restore_regime was skipped and the
@@ -786,12 +859,48 @@ self_test() {
     /^---\r?$/ { fences++; if (fences == 2) print line; print; next }
     { print }
   ' "$root/up5/demo/SKILL.md" > "$root/skills5/demo/SKILL.md"
-  apply_one demo "$root/up5/demo" "$root/work5" 2>/dev/null \
+  apply_one demo "$root/up5/demo" "$root/work5" "$root/skills5/demo" 2>/dev/null \
     || { echo "self-test FAIL: apply of a body-mention skill failed" >&2; return 1; }
   has_regime "$root/skills5/demo/SKILL.md" \
     || { echo "self-test FAIL: regime flag lost on a skill that documents it in prose" >&2; return 1; }
   [ "$(awk '/^---\r?$/{f++} f==1&&/^disable-model-invocation/{c++} END{print c}' "$root/skills5/demo/SKILL.md")" = 1 ] \
     || { echo "self-test FAIL: regime flag duplicated after restore" >&2; return 1; }
+
+  # --- a new row vendors on first --apply, and a dest column puts it outside $SKILLS_DIR ---------
+  # The shared references/ tree the agent-skills bodies cite is not a skill: it has no SKILL.md and
+  # sits beside $SKILLS_DIR, not inside it. Both halves are exercised together because they arrived
+  # together - a dest row has no live directory until the first apply creates one, so without the
+  # initial-vendor path the row could never leave BLOCKED.
+  #
+  # `-` as the baseline is what separates the two: never-vendored, so write it. A missing directory
+  # under a *real* baseline is a copy that was lost, and must stay BLOCKED rather than be silently
+  # re-created over whatever removed it.
+  mkdir -p "$root/up6/p/refs" "$root/skills6" "$root/patches6"
+  SKILLS_DIR="$root/skills6"; PATCHES="$root/patches6"; INVENTORY="$root/inv6.tsv"
+  PLUGINS_JSON="$root/plugins6.json"
+  printf 'shared\n' > "$root/up6/p/refs/definition-of-done.md"
+  "$PY" -c 'import json,sys; json.dump({"plugins":{"p@m":[{"installPath":sys.argv[1],
+            "gitCommitSha":"deadbeefdeadbeef"}]}}, open(sys.argv[2],"w"))' \
+       "$root/up6/p" "$PLUGINS_JSON"
+  printf 'refs\tp@m\trefs\t-\t../references\n' > "$INVENTORY"
+  case "$(check)" in *'APPLIABLE: refs'*) ;;
+    *) echo "self-test FAIL: a new row with a - baseline is not APPLIABLE" >&2; return 1 ;;
+  esac
+  apply refs >/dev/null 2>&1 \
+    || { echo "self-test FAIL: initial vendor of a new row failed" >&2; return 1; }
+  [ -f "$root/references/definition-of-done.md" ] \
+    || { echo "self-test FAIL: dest column not honoured, nothing written at ../references" >&2; return 1; }
+  [ ! -e "$root/skills6/refs" ] \
+    || { echo "self-test FAIL: dest row also written under \$SKILLS_DIR" >&2; return 1; }
+  [ "$(cut -f4 "$INVENTORY")" = "$(py_helper hash "$root/up6/p/refs")" ] \
+    || { echo "self-test FAIL: baseline not rebased on a 5-column row" >&2; return 1; }
+  case "$(check)" in *'identical'*) ;;
+    *) echo "self-test FAIL: re-check after the initial vendor does not read identical" >&2; return 1 ;;
+  esac
+  rm -rf "$root/references"
+  case "$(check)" in *'BLOCKED: refs'*) ;;
+    *) echo "self-test FAIL: a copy lost under a real baseline is not BLOCKED" >&2; return 1 ;;
+  esac
 
   echo "self-test OK"
 }
@@ -803,9 +912,9 @@ case "${1:---help}" in
   --check)     check ;;
   --diff)      [ $# -eq 2 ] || { usage; exit 2; }
                row=$(lookup "$2") || { echo "$2: not in inventory.tsv" >&2; exit 1; }
-               up=$(cut -f5 <<<"$row"); note=$(cut -f7 <<<"$row")
+               up=$(cut -d"$US" -f5 <<<"$row"); note=$(cut -d"$US" -f7 <<<"$row"); live=$(cut -d"$US" -f8 <<<"$row")
                [ -z "$note" ] || { echo "$2: ${note%%|*} - ${note#*|}" >&2; exit 1; }
-               drift_diff "$up" "$SKILLS_DIR/$2" ;;
+               drift_diff "$up" "$live" ;;
   --snapshot)  shift; [ $# -gt 0 ] || { usage; exit 2; }; snapshot "$@" ;;
   --apply)     shift; [ $# -gt 0 ] || { usage; exit 2; }; apply "$@" ;;
   --hash)      [ $# -eq 2 ] || { usage; exit 2; }; py_helper hash "$2" ;;

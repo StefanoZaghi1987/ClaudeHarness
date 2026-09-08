@@ -107,7 +107,7 @@ Full detail — the review axes of each agent, the output contract they share, a
 | Skill | Purpose |
 |---|---|
 | `model-config-sync` | Re-validates the model-routing configuration (aliases, fallback chain, advisor, subagent frontmatter) against the current official Claude Code docs, then proposes diffs — it never applies an edit without confirmation. |
-| `skills-resync` | Re-syncs ~28 vendored skills in `~/.claude/skills` against their upstream plugins, replaying protected local edits across each re-vendor (details below). |
+| `skills-resync` | Re-syncs ~33 vendored skills in `~/.claude/skills` against their upstream plugins, replaying protected local edits across each re-vendor (details below). |
 
 Both skills are manual: their frontmatter says `disable-model-invocation: true`, so they never fire on their own. You call them by name when you want them.
 
@@ -158,16 +158,16 @@ Take only the pieces you want — a single agent works without the others, altho
 
 ### Option 2 — install a release zip
 
-Replace `v1.0.0` with the [latest tag](https://github.com/StefanoZaghi1987/ClaudeHarness/releases). The zip contains `agents/`, `skills/`, `rules/` at the top level, so it expands straight into `~/.claude/` and overwrites files with the same names:
+Replace `v1.1.0` with the [latest tag](https://github.com/StefanoZaghi1987/ClaudeHarness/releases). The zip contains `agents/`, `skills/`, `rules/` at the top level, so it expands straight into `~/.claude/` and overwrites files with the same names:
 
 ```bash
 curl -fsSL -o /tmp/claude-harness.zip \
-  https://github.com/StefanoZaghi1987/ClaudeHarness/releases/download/v1.0.0/claude-harness-v1.0.0.zip
+  https://github.com/StefanoZaghi1987/ClaudeHarness/releases/download/v1.1.0/claude-harness-v1.1.0.zip
 unzip -o /tmp/claude-harness.zip -d ~/.claude/
 ```
 
 ```powershell
-Invoke-WebRequest https://github.com/StefanoZaghi1987/ClaudeHarness/releases/download/v1.0.0/claude-harness-v1.0.0.zip -OutFile $env:TEMP\claude-harness.zip
+Invoke-WebRequest https://github.com/StefanoZaghi1987/ClaudeHarness/releases/download/v1.1.0/claude-harness-v1.1.0.zip -OutFile $env:TEMP\claude-harness.zip
 Expand-Archive $env:TEMP\claude-harness.zip -DestinationPath $HOME\.claude -Force
 ```
 
@@ -214,6 +214,8 @@ bash $RESYNC --hash <dir>         # print the tree hash of a skill directory
 bash $RESYNC --clean [--dry-run]  # sweep temp dirs, .rej/.orig leftovers, stale clones
 bash $RESYNC --self-test          # run the engine's self-test in a scratch dir
 ```
+
+A row can also vendor a shared asset tree rather than a skill: the `agent-skills` bodies cite four checklists that live outside every skill, and an optional destination column keeps them in sync at `~/.claude/references/`, where their existing relative paths already resolve. A row with `-` as its baseline is one that has never been vendored, and `--apply` performs its first copy.
 
 `--clean` never touches a skill directory. It removes only the engine's own leftovers: temporary working directories, `.regime`/`.rej`/`.orig` files, orphaned plugin clones, and mirrors of plugin versions no longer pinned.
 
