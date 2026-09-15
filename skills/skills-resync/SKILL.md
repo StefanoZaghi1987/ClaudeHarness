@@ -1,6 +1,6 @@
 ---
 name: skills-resync
-description: Re-sync the vendored user skills in ~/.claude/skills against their upstream plugin copies, and re-vendor the ones that moved after one confirmation. Manual maintenance task.
+description: Re-sync the vendored user skills in ~/.claude/skills against their upstream plugin or tracked-repo copies, and re-vendor the ones that moved after one confirmation. Manual maintenance task.
 disable-model-invocation: true
 allowed-tools: Bash, Read, Glob, Grep, Edit, Write
 compatibility: Designed for Claude Code. Requires git, patch, diff, awk and python3 on PATH (Git Bash on Windows); manages skills under ~/.claude/skills.
@@ -89,7 +89,7 @@ rejects and you have to decide what the edit should become against the rewritten
 
   Because the diff ignores the line, `--check` reports it as its own `REGIME` column instead. That
   column is the only thing that catches an L6 lost out of band, so reconcile the count:
-  **18 = 16 mapped + 2 of the 4 unmapped**, where the 16 is **12 locally added + 4 flagged
+  **19 = 17 mapped + 2 of the 4 unmapped**, where the 17 is **13 locally added + 4 flagged
   upstream**. `handoff`, `wayfinder`, `wait-what` and `improve-codebase-architecture` ship the line
   upstream, so it is not a local edit there: neither re-add it nor strip it. The denominator counts
   skill rows only — the `references` row has no frontmatter and no regime. `code-simplification`,
@@ -144,8 +144,10 @@ rejects and you have to decide what the edit should become against the rewritten
   `SKILL.md`. `ponytail-review` was vendored once and removed again. Never report ponytail as
   missing or drifted. If it is ever disabled, add rows for it to the inventory.
 - **The four `UNMAPPED` skills are originals with no upstream** — `consolidate-comments`,
-  `consolidate-specs`, `model-config-sync`, `skills-resync`. Any *other* name in that line is a
-  skill vendored without an inventory row, and needs one.
+  `consolidate-specs`, `model-config-sync`, `skills-resync`. The four RisorseArtificiali skills
+  are mapped through `git+` rows (see *The RisorseArtificiali group*), so this line naming
+  exactly those four originals is the reconciled state. Any *other* name is a skill vendored
+  without an inventory row, and needs one.
 
 ## The shared references
 
@@ -215,11 +217,32 @@ Bare-name cross-references to non-vendored skills (`source-driven-development`,
 `debugging-and-error-recovery`, `test-driven-development`) remain in some bodies as prose "see also"
 pointers. They are inert and accepted. Flag one only if it becomes an executable instruction.
 
+## The RisorseArtificiali group
+
+`plan-walkthrough`, `pr-walkthrough`, `slides` and `adversarial-code-review` arrived from
+`github.com/RisorseArtificiali/skills` via the `skills` npm CLI, and were folded in as the first
+four `git+` rows — the repo is not a marketplace plugin, so there is no catalog entry to resolve
+through and the `main` tip is the upstream (see *Upstream resolution*). Their entries were removed
+from `~/.agents/.skill-lock.json` in the same pass: the directories are vendor state now, and a
+later `npx skills update` must not be able to overwrite them. `microsoft-foundry` and `find-skills`
+stay CLI-managed there, for other agents.
+
+Upstream ships no `disable-model-invocation` lines, so the one regime edit is local — the 13th of
+L6's locally-added count. Ruled 2026-09-15, recorded here so it is not reopened:
+
+| skill | regime | ruling |
+|---|---|---|
+| `adversarial-code-review` | slash-only — local L6 | Claims the same opening move as `code-review-and-quality` and `ponytail-review` ("review this / before merging") and is the most expensive misfire in the fleet — reviewer subagents plus skeptic reproduction in isolated worktrees. The source repo's own cheatsheet frames it as "the gate, not the everyday tool", a deliberate human-invoked ritual; nothing dispatches to it, so demotion breaks no dispatch graph. |
+| `plan-walkthrough`, `pr-walkthrough`, `slides` | model-invoked | Each is the sole claimant of its opening move — reviewing a plan-shaped document, walking through a PR above the code level, building a deck — so there is no collision to demote on. Their sibling cross-references are prose, not dispatches. |
+
+No patches: apart from that one frontmatter line the four are byte-identical to upstream, and
+`slides`' `assets/` and `scripts/` travel inside its directory, so the tree hash covers them.
+
 ## Procedure
 
-0. **`bash scripts/resync.sh --refresh`.** Pulls the marketplace clones and mirrors any plugin the
+0. **`bash scripts/resync.sh --refresh`.** Pulls the marketplace clones, mirrors any plugin the
    catalog pins to a url+sha (superpowers, mattpocock-skills) whose current content is nowhere on
-   disk. This runs first and touches nothing under `~/.claude/skills`. It is mandatory before the
+   disk, and fetches every `git+` row's mirror to its branch tip. This runs first and touches nothing under `~/.claude/skills`. It is mandatory before the
    first `--check` of a session: the install cache is frozen for disabled plugins (see *Upstream
    resolution* below), so without it `--check` compares against a stale tree and reports nothing.
 
@@ -265,16 +288,18 @@ pointers. They are inert and accepted. Flag one only if it becomes an executable
    backup directories, any `SKILL.md.regime` staging file, any `.rej`/`.orig` a rejected patch left,
    `/skills-resync-backup` at the Git Bash mount root left by an older copy of this skill, **and**
    the marketplace clones the plugin installer orphans at `~/.claude/plugins/cache/temp_git_*`.
-   It also prunes dead mirrors under `plugins/cache/skills-resync-mirror/`: the one at the
-   currently pinned sha survives (it *is* the resolved upstream for `--check`/`--diff`); every
-   mirror from a sha the catalog no longer pins is removed. Orphans younger than an hour are kept
+   It also prunes dead mirrors under `plugins/cache/skills-resync-mirror/`: the mirrors that are
+   resolved upstream survive — a sha mirror while the catalog still pins its sha, a `git+` mirror
+   while its inventory row exists (they *are* the upstream `--check`/`--diff` compare against);
+   every other mirror is removed. Orphans younger than an hour are kept
    and reported instead — a concurrent plugin install works inside one, and nothing here can tell a
    live clone from a corpse by name. Override with `ORPHAN_MIN_AGE` on a machine known to be idle.
    Run `--clean --dry-run` on its own to size the leftovers without a re-vendor.
 8. Report what was written, what was skipped, and what is still blocked.
 
 `--self-test` exercises the replace, stale-file, missing-upstream, regime-restore, patch-replay,
-reject-rollback, baseline-rebase, mainline-update, body-mention and initial-vendor/`dest` paths in a
+reject-rollback, baseline-rebase, mainline-update, body-mention, initial-vendor/`dest` and
+git-branch-tracking (clone, tip-update, malformed pid, prune-keep) paths in a
 scratch directory, touching nothing real. Run it after editing the script.
 
 Recommended cadence: monthly, or when a skill behaves unexpectedly.
@@ -298,6 +323,13 @@ Claude Code refreshes, by the source kind the marketplace catalog records for th
   (superpowers, mattpocock-skills). `--refresh` does the shallow fetch; the mirror lives under
   `plugins/cache/skills-resync-mirror/<plugin>/<sha12>/` and is kept (not swept) for as long as the
   catalog pins that sha.
+- `git+<repo>@<branch>` — no marketplace at all, a plain repo tracked at a branch
+  (RisorseArtificiali). The inventory row is the whole spec — there is no catalog entry to read —
+  and the mirror sits at the same two-segment path with the repo munged flat. It is **mutable**:
+  `--refresh` fetches and hard-resets it to the branch tip every run, where a pinned-sha mirror is
+  skipped once fetched. A failed fetch keeps the mirror at the last known tip with a WARNING — the
+  one bounded way a `--check` can compare against a stale upstream, and the WARNING is the signal
+  that it did.
 
 If the catalog entry is gone and the install cache is gone too, the row reads `upstream-missing`
 (BLOCKED). `--hash <dir>` prints the tree hash a baseline holds, for reconciling by hand.

@@ -30,7 +30,7 @@ The README uses these words with a specific meaning. They are all standard Claud
 | **subagent** | A helper agent with its own context window, its own model, and its own tools. You start it by name, it does one job, and it reports back. |
 | **rule** | A small instruction file that is loaded in every session, so it shapes every turn. |
 | **context window** | Everything the model can see in one turn. It is shared, limited, and every installed skill sits in it. |
-| **vendored skill** | A skill copied out of its plugin into your own `skills/` folder, so no plugin update can change or remove it. |
+| **vendored skill** | A skill copied out of its plugin or source repo into your own `skills/` folder, so no plugin or repo update can change or remove it. |
 | **phase** | A durable step in the work. It has a goal, produces an artifact, and ends at a stated exit criterion. Phases rarely change. |
 | **gate** | The end of a phase: an agent review, followed by a human approval. Work moves forward only through a gate. |
 
@@ -40,7 +40,7 @@ The README uses these words with a specific meaning. They are all standard Claud
 2. **Thin skills, thick context.** A skill earns its place by what it loads per unit of value. Every installed skill sits in the context window in *every* turn, and every subagent inherits that weight — so: few skills, small ones, and know what each one does. The real knowledge should grow step by step in the documents the workflow produces (spec, plan, tasks, review reports), not be loaded up front by a big skill. For some phases, the winning choice is zero skills and one line of instruction.
 3. **Phases are durable, tools are not.** Work moves through five phases — brainstorm, specify, plan, implement, review — and each phase is defined by the artifact it produces and the exit criterion it ends at, never by the tool that happens to implement it. Several tools can implement the same phase, and swapping one changes nothing about the workflow. What ends every phase is a **gate**, and a gate is two reviews in sequence: a reviewer subagent with a fresh context window, and then a human approval. Neither replaces the other. An agent can tell you that a spec contradicts itself; it cannot tell you that the feature is not worth building. The full pipeline is in [`WORKFLOW.md`](WORKFLOW.md).
 4. **Model routing on purpose.** Everyday work runs at the default tier. The strongest, most expensive models are reserved for the phases where judgement actually pays: architecture, spec review, plan review, and code review. All model references are aliases (`fable`, `opus`, `sonnet`, `haiku`) — never versioned IDs — with a tiered fallback chain, so the configuration survives model updates. The full requirement set is in [`prompts/2_ImproveClaudeCodeConfiguration.md`](prompts/2_ImproveClaudeCodeConfiguration.md).
-5. **The harness maintains itself.** Two manual skills keep the configuration honest. `model-config-sync` re-checks the model routing against the current official docs. `skills-resync` re-vendors a fleet of vendored skills from their upstream plugins without losing protected local edits.
+5. **The harness maintains itself.** Two manual skills keep the configuration honest. `model-config-sync` re-checks the model routing against the current official docs. `skills-resync` re-vendors a fleet of vendored skills from their upstream plugins or tracked repos without losing protected local edits.
 
 ## The workflow
 
@@ -107,11 +107,11 @@ Full detail — the review axes of each agent, the output contract they share, a
 | Skill | Purpose |
 |---|---|
 | `model-config-sync` | Re-validates the model-routing configuration (aliases, fallback chain, advisor, subagent frontmatter) against the current official Claude Code docs, then proposes diffs — it never applies an edit without confirmation. |
-| `skills-resync` | Re-syncs ~33 vendored skills in `~/.claude/skills` against their upstream plugins, replaying protected local edits across each re-vendor (details below). |
+| `skills-resync` | Re-syncs ~37 vendored skills in `~/.claude/skills` against their upstream plugins or tracked repos, replaying protected local edits across each re-vendor (details below). |
 
 Both skills are manual: their frontmatter says `disable-model-invocation: true`, so they never fire on their own. You call them by name when you want them.
 
-These two **maintain** the setup. The skills that **do the work** — `interview-me`, `spec-driven-development`, `writing-plans`, `incremental-implementation` and around two dozen more — do not ship here. They come from six plugins and are vendored into `~/.claude/skills`, which is exactly why `skills-resync` exists.
+These two **maintain** the setup. The skills that **do the work** — `interview-me`, `spec-driven-development`, `writing-plans`, `incremental-implementation` and around three dozen more — do not ship here. They come from six plugins and one tracked repo, and are vendored into `~/.claude/skills`, which is exactly why `skills-resync` exists.
 
 One caveat when adopting `skills-resync`: `scripts/inventory.tsv` and `scripts/patches/` ship the author's own vendored fleet as a worked example of the format, not configuration to reproduce. The engine itself is generic, and every path it touches is overridable through environment variables (`INVENTORY`, `SKILLS_DIR`, `PLUGINS_JSON`, …).
 
@@ -158,16 +158,16 @@ Take only the pieces you want — a single agent works without the others, altho
 
 ### Option 2 — install a release zip
 
-Replace `v1.1.0` with the [latest tag](https://github.com/StefanoZaghi1987/ClaudeHarness/releases). The zip contains `agents/`, `skills/`, `rules/` at the top level, so it expands straight into `~/.claude/` and overwrites files with the same names:
+Replace `v1.2.0` with the [latest tag](https://github.com/StefanoZaghi1987/ClaudeHarness/releases). The zip contains `agents/`, `skills/`, `rules/` at the top level, so it expands straight into `~/.claude/` and overwrites files with the same names:
 
 ```bash
 curl -fsSL -o /tmp/claude-harness.zip \
-  https://github.com/StefanoZaghi1987/ClaudeHarness/releases/download/v1.1.0/claude-harness-v1.1.0.zip
+  https://github.com/StefanoZaghi1987/ClaudeHarness/releases/download/v1.2.0/claude-harness-v1.2.0.zip
 unzip -o /tmp/claude-harness.zip -d ~/.claude/
 ```
 
 ```powershell
-Invoke-WebRequest https://github.com/StefanoZaghi1987/ClaudeHarness/releases/download/v1.1.0/claude-harness-v1.1.0.zip -OutFile $env:TEMP\claude-harness.zip
+Invoke-WebRequest https://github.com/StefanoZaghi1987/ClaudeHarness/releases/download/v1.2.0/claude-harness-v1.2.0.zip -OutFile $env:TEMP\claude-harness.zip
 Expand-Archive $env:TEMP\claude-harness.zip -DestinationPath $HOME\.claude -Force
 ```
 

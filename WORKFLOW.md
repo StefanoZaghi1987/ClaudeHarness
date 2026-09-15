@@ -184,6 +184,7 @@ review measures the diff against it. Without a spec, "done" is an opinion.
 | `brainstorming` alone, covering Phase 1 and Phase 2 | A small, self-contained change. | One conversation from idea to draft design. The trade-off is that intent and spec arrive together, so there is no separate stated intent to check the spec against. |
 | `spec-driven-development` → `documentation-and-adrs` | The spec contains a decision people will question later. | The spec says what will be true; the ADR says why this way and not another. Splitting them keeps the spec readable as a description. |
 | `spec-driven-development` → `grilling` | The spec is written but you do not believe it yet. | A cheap self-check before you spend `spec-reviewer` on it. Use it when your own doubt is the blocker, not as a replacement for Gate 1. |
+| `spec-driven-development` → `plan-walkthrough` | The spec is written and you want to walk it with structure before spending Gate 1 on it. | A visual dossier — traceability matrix, assumption map, reality check against the codebase — then a step-by-step walkthrough with you in the loop. The grilling row above interrogates the author; this one audits the document. |
 
 **Which is better.** `architect` → `spec-driven-development` is the strongest combination for
 anything structural, and it is the one that most reliably shortens the gate. For routine
@@ -245,6 +246,7 @@ broken for the next three steps costs more than the feature saved.
 | `planning-and-task-breakdown` → `writing-plans` | You cannot say what the first step is. | The breakdown finds the tasks and the dependencies between them; `writing-plans` then turns that ordering into a plan that names real files. Not being able to name step one is the signal that you need this. |
 | `planning-and-task-breakdown` → `dispatching-parallel-agents` → `writing-plans` | The breakdown revealed branches that share nothing. | Parallelism is decided *after* the dependencies are known, so each branch gets exactly the context it needs and no shared state. |
 | `writing-plans` → `architect` (back one step) | The plan keeps failing to come out clean. | A plan that will not sequence usually means the design underneath it is wrong. This is a signal to go back to Phase 2, not to try harder at Phase 3. |
+| `writing-plans` → `plan-walkthrough` | The plan is long, or it arrived from outside this pipeline — a PRD, an issue, another agent. | The dossier's phase graph and assumption map show where the order is fragile before `implementation-plan-reviewer` spends its pass on file references. |
 
 **Which is better.** `writing-plans` alone covers most work. The one reliable trigger for
 adding `planning-and-task-breakdown` is not the size of the change but your own uncertainty
@@ -336,6 +338,8 @@ one per plan.
 |---|---|---|---|
 | `code-reviewer` | subagent | **this repo** (`opus`) | The default gate. It is the only agent in this repository with `Bash`, for exactly one reason: it runs `git diff` and sources its own diff. It reports only findings it is confident about, most severe first, each with a `file:line` and a concrete fix, and it skips style points a formatter would catch. |
 | `code-review-and-quality` | skill | `agent-skills` | A multi-axis review pass before merging. Reach for it when you want a broader review than the diff-focused subagent gives — including for code written by another agent or another person. |
+| `pr-walkthrough` | skill | `RisorseArtificiali/skills` | The above-the-code pass: a Mermaid map of what the change does to architecture, impacts, UX, operations, docs and tests, then an interactive walkthrough with finding triage. Reach for it when the diff is too large or unfamiliar to judge by reading, or when the PR is someone else's. It feeds your Gate 3 decision; it is not line-level review. |
+| `adversarial-code-review` | skill | `RisorseArtificiali/skills` | The heavy pre-merge treatment: fresh-context reviewers attack the change from distinct lenses, then skeptic subagents must reproduce every finding in an isolated worktree before it counts. Slash-only by design — invoke `/adversarial-code-review` when the change is merge-bound and risky, or when a clean review surprised you. The gate's artillery, not the everyday review. |
 | `code-simplification` | skill | `agent-skills` | Refactors for clarity without changing behaviour. Reach for it **after** the code is correct, never instead of correctness. |
 | `security-and-hardening` | skill | `agent-skills` | A second, dedicated pass over the sensitive surfaces of the diff. Reach for it whenever the change touched authentication, storage, or untrusted input. |
 
@@ -348,6 +352,7 @@ one per plan.
 | `code-review-and-quality` → `code-reviewer` | A larger change, or code written by another agent or another person. | The broad multi-axis pass finds themes; the gate agent then confirms the specific defects with line references. Running the broad pass second wastes it, because the gate has already narrowed the field. |
 | any of the above + `security-and-hardening` | The diff touched authentication, storage, or untrusted input. | A dedicated pass sees things a general review skims, because it is looking for one class of problem rather than four. |
 | `code-reviewer` → `doubt-driven-development` | The review came back clean and that surprised you. | A clean review on a risky change is worth one adversarial second opinion. Use it rarely, or it becomes a ritual rather than a check. |
+| `/adversarial-code-review` instead of the stack above | Merge-bound, risky, or a clean review genuinely surprised you. | Every finding must be reproduced in an isolated worktree before it reaches you, so the verdict arrives verified. Expensive by design — which is exactly why it is a deliberate invocation rather than an automatic trigger. |
 
 **Which is better.** `code-reviewer` alone is correct for most work, and the temptation to
 stack reviewers is usually a symptom of an under-reviewed Gate 1 or Gate 2. When you do
@@ -431,10 +436,11 @@ These belong to no phase. They apply whenever the situation appears.
 | `context-engineering` | skill | `agent-skills` | Output quality is degrading, or you have just switched to a different task. It curates what the agent sees. |
 | `dispatching-parallel-agents` | skill | `superpowers` | Two or more tasks are genuinely independent. |
 | `writing-for-agents` | skill | `mattpocock-skills` | You are writing or editing a skill, a `CLAUDE.md`, or any other document an agent will consume. |
+| `slides` | skill | `RisorseArtificiali/skills` | The work must be presented or explained to an audience. It builds the deck as a slides markdown plus a fully-local reveal.js build — no CDN, speaker notes included. |
 | `skill-creator` | skill | `skill-creator` | You are building a new skill from scratch. |
 | `claude-automation-recommender` | skill | `claude-code-setup` | You want to know which parts of your setup could be automated with hooks or commands. |
 | `build-mcp-server`, `build-mcp-app`, `build-mcpb` | skills | `mcp-server-dev` | You are building an MCP server, an MCP app, or an MCP bundle. Outside the feature workflow. |
-| `skills-resync` | skill | **this repo** | Monthly, or when a skill behaves unexpectedly: re-sync your vendored skills against their upstream plugins. |
+| `skills-resync` | skill | **this repo** | Monthly, or when a skill behaves unexpectedly: re-sync your vendored skills against their upstream plugins or tracked repos. |
 | `model-config-sync` | skill | **this repo** | After a Claude Code release: re-check the model routing against the current official documentation. |
 
 ---
@@ -454,16 +460,20 @@ The table to reopen at nine in the morning.
 | holding a finished spec | `spec-reviewer` subagent | **approve it, or send it back** |
 | holding an approved spec | `writing-plans` | check the plan matches the scope of the spec |
 | holding a finished plan | `implementation-plan-reviewer` subagent | **approve it, or send it back** |
+| holding a plan-shaped document you want to walk | `plan-walkthrough` | answer the closed-menu questions, triage the findings |
 | about to write multi-file code | `incremental-implementation` | keep the steps small |
 | executing a long plan | `executing-plans` | review at each checkpoint |
 | about to make an irreversible decision | `doubt-driven-development` | read the disproof honestly |
 | touching auth, storage, or untrusted input | `security-and-hardening` | do not defer it to review |
 | holding a finished diff | `code-reviewer` subagent | **approve the merge, or send it back** |
+| staring at a diff too big to judge by reading | `pr-walkthrough` | judge the impact map before the lines |
+| merge-bound or risky, and it matters | `/adversarial-code-review` | read the verified verdict, then merge explicitly |
 | holding correct but unclear code | `code-simplification` | confirm the behaviour did not change |
 | finishing a feature or an epic | `consolidate-specs`, `consolidate-comments`, `documentation-and-adrs` | answer the "to be confirmed" questions |
 | looking at a bug report | `diagnosing-bugs` or `systematic-debugging` | do not accept a symptom fix |
 | lost in the agent's last message | `wait-what` | say what did not land |
 | running out of session | `handoff` | check the handoff before closing |
+| having to present the work | `slides` | rehearse from the speaker notes |
 | a month since the last one | `skills-resync` | approve each re-vendor |
 
 ---
@@ -472,7 +482,8 @@ The table to reopen at nine in the morning.
 
 Only a few of the tools above ship in this repository: the four subagents in
 [`agents/`](agents/README.md), one rule in `rules/`, and two maintenance skills in
-[`skills/`](skills/README.md). Everything else is a skill that comes from a plugin.
+[`skills/`](skills/README.md). Everything else is a skill that comes from a plugin or a tracked
+repo.
 
 There are two ways to get those skills.
 
@@ -487,8 +498,8 @@ being disabled, updated, or removed. The cost is that a vendored copy receives n
 which is exactly the problem [`skills-resync`](skills/skills-resync/SKILL.md) exists to solve.
 
 `skills-resync` records where each vendored skill came from, detects when its upstream has
-moved, and re-vendors it while replaying your protected local edits. My own fleet — 28 skills
-taken from 6 plugins — ships as a worked example of the format in
+moved, and re-vendors it while replaying your protected local edits. My own fleet — 37 skills
+taken from 6 plugins and one tracked repo — ships as a worked example of the format in
 [`skills/skills-resync/scripts/inventory.tsv`](skills/skills-resync/scripts/inventory.tsv).
 It is an example, not configuration to copy: point the `INVENTORY` environment variable at
 your own file to manage a different set.

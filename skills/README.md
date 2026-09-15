@@ -43,13 +43,14 @@ upstream has moved, captures your local edits as replayable patches, and then pe
 verify-then-swap re-vendor that rolls back cleanly if a patch does not apply. It resolves
 upstream from the marketplace clone rather than from the plugin install cache, because the
 install cache is frozen for a disabled plugin — so comparing against it would never show
-drift at all.
+drift at all. Skills from a plain git repo (no marketplace) ride the same machinery through a
+`git+<repo>@<branch>` inventory row whose mirror is fetched to the branch tip.
 
 ```bash
 RESYNC=~/.claude/skills/skills-resync/scripts/resync.sh
 
 bash $RESYNC --self-test           # run this first, on a new machine
-bash $RESYNC --refresh             # pull marketplaces, mirror pinned plugins
+bash $RESYNC --refresh             # pull marketplaces, sync mirrors (pinned sha, git branch)
 bash $RESYNC --check               # classify every vendored skill's drift
 bash $RESYNC --diff <skill>        # show local against upstream
 bash $RESYNC --snapshot <skill>    # capture local edits as a patch
@@ -74,13 +75,13 @@ what to do*. It then stops and waits. It never applies an edit without your appr
 [`WORKFLOW.md`](../WORKFLOW.md) names them, and a workflow you cannot reproduce is a story
 rather than a method.
 
-The `From` column gives the source plugin. The full machine-readable record — plugin,
+The `From` column gives the source plugin or repo. The full machine-readable record — plugin,
 marketplace, path inside the plugin, and the upstream state each copy was taken at — is
 [`skills-resync/scripts/inventory.tsv`](skills-resync/scripts/inventory.tsv). That file
 ships as a **worked example of the format, not as configuration to reproduce**: point the
 `INVENTORY` environment variable at your own file to manage a different set.
 
-Thirty-three skills, from six plugins, grouped here by the workflow phase they serve.
+Thirty-seven skills, from six plugins and one tracked repo, grouped here by the workflow phase they serve.
 
 One row in that file is not a skill: `agent-skills` keeps four checklists at its repo root and
 five of the skills below cite them as `../../references/<file>.md`. Vendored, that same relative
@@ -113,6 +114,7 @@ pointer resolves untouched.
 |---|---|---|
 | `writing-plans` | `superpowers` | Turns a spec or clear requirements for a multi-step task into a written plan, before any code is touched. |
 | `planning-and-task-breakdown` | `agent-skills` | Breaks work into ordered, implementable tasks. Also for estimating scope, and for finding what can run in parallel. |
+| `plan-walkthrough` | `RisorseArtificiali/skills` | Logical review of a PRD, plan, or design doc with the human reviewer in the loop — a visual dossier (phase graph, traceability matrix, assumption map), then a step-by-step walkthrough with finding triage. |
 | `dispatching-parallel-agents` | `superpowers` | For two or more independent tasks with no shared state and no ordering. It constructs exactly the context each agent needs, rather than letting them inherit the session. |
 
 ### Phase 4 — Implement
@@ -133,6 +135,8 @@ pointer resolves untouched.
 | `code-simplification` | `agent-skills` | Simplifies code for clarity without changing behaviour, for code that works but is harder to read than it should be. |
 | `codebase-design` | `mattpocock-skills` | The shared vocabulary for deep modules — depth, seam, adapter, leverage, locality — plus the deletion test and the design-it-twice pattern. Other skills call it for the terms. |
 | `improve-codebase-architecture` | `mattpocock-skills` | Scans a codebase for deepening opportunities, presents them as a visual HTML report, then grills through whichever one you pick. Slash-only. |
+| `pr-walkthrough` | `RisorseArtificiali/skills` | Logical review of a PR with the human reviewer in the loop — what the change does to architecture, impacts, UX, operations, docs and tests — as a Mermaid map then an interactive walkthrough. Above the code level; not line-level review. |
+| `adversarial-code-review` | `RisorseArtificiali/skills` | The pre-merge gate: fresh-context reviewers attack the change from distinct lenses, then skeptic subagents must reproduce every finding in an isolated git worktree before it counts. Slash-only. |
 
 The phase also closes out with `documentation-and-adrs` (listed under Phase 2, since it
 serves both) and `handoff` (listed under *Any moment*), plus `consolidate-specs` and
@@ -154,6 +158,7 @@ See [Closing out](../WORKFLOW.md#phase-5--review) in the workflow.
 | `handoff` | `mattpocock-skills` | Compacts the current conversation into a handoff document, including which skills the next agent should call, so a fresh session can continue the work. |
 | `context-engineering` | `agent-skills` | Optimises what the agent sees and when. For a new session, for degrading output quality, for switching tasks, or for configuring a project's rules files. |
 | `writing-for-agents` | `mattpocock-skills` | The reference for writing any document an agent consumes: a skill, an `AGENTS.md`, a `CLAUDE.md`, or a document reached by a pointer. |
+| `slides` | `RisorseArtificiali/skills` | Builds a presentation as a slides markdown plus a fully-local reveal.js deck — vendored assets, no CDN, custom token-based theme. |
 
 ### Building the tooling itself
 

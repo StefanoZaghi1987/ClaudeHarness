@@ -3,7 +3,7 @@
 # Judgement stays in SKILL.md - which protected edits (L1-L6) a skill carries, and whether a
 # remaining diff is one of them. Everything this script does is decidable without reading prose.
 #
-# Usage: resync.sh --refresh                    pull marketplaces, mirror url-pinned plugins
+# Usage: resync.sh --refresh                    pull marketplaces, sync mirrors (pinned sha, git branch)
 #        resync.sh --check                      classify every skill in inventory.tsv
 #        resync.sh --diff <skill>               full diff for one skill
 #        resync.sh --snapshot <skill> [...]     record the skill's local edits as a replayable patch
@@ -84,6 +84,9 @@ PY=$(command -v python3 || command -v python) || {
 #   {source: url, url, sha}     content is not in the clone, only a pinned sha       -> mirror it
 #
 # Only the third kind needs anything fetched, and only when the pin has moved past the cache.
+# A pid starting `git+` never reaches the catalog at all: it is a plain repo tracked at a branch
+# (git+<repo>@<branch>), the inventory row is the whole spec, and its mirror at the branch tip is
+# mutable - sync_mirrors fetches and hard-resets it every run, where a pinned-sha mirror is skipped.
 #
 # The baseline column holds a hash of the upstream tree, not a plugin commit sha. A sha names the
 # whole plugin, so any commit anywhere in it reads as "this skill moved"; a per-skill tree hash is
@@ -142,8 +145,30 @@ def catalog(marketplace):
                                   for e in (entries or []) if isinstance(e, dict)}
     return _catalogs[marketplace]
 
+# ponytail: the mirror path must stay exactly two segments under $MIRRORS - prune_mirrors' depth-2
+# sweep rm -rf's exactly what it finds there, so any future pid grammar with an unmunged separator
+# would reintroduce a mid-tree delete, and on Windows an unmunged backslash escapes $MIRRORS
+# outright (a joined component with a drive root resets the path). Hash-suffix the pid here if a
+# second repo ever collides with a munged name.
+def munge(s):
+    return s.replace('/', '__').replace('\\', '__')
+
 def resolve(pid):
     """-> (plugin root, note, mirror-spec). root '' means unresolvable; note is 'state|detail'."""
+    # git+<repo>@<branch>: a plain repo, no marketplace - the row itself is the spec and the branch
+    # tip is the upstream. rpartition, not partition: the repo may contain slashes, the branch is
+    # the last field.
+    if pid.startswith('git+'):
+        repo, _, branch = pid[4:].rpartition('@')
+        if not repo or not branch:
+            return '', 'upstream-missing|malformed git pid %s' % pid, None
+        url = repo if ('://' in repo or repo.startswith('/')) else 'https://' + repo
+        rel = munge('git+' + repo) + '/' + munge(branch)
+        mirror = os.path.join(mirrors, *rel.split('/'))
+        spec = (pid, url, branch, rel, 'git')
+        if os.path.isdir(mirror):
+            return mirror, '', spec
+        return '', 'refresh-needed|%s branch %s not mirrored - run --refresh' % (repo, branch), spec
     name, _, marketplace = pid.partition('@')
     entry = (installed.get(pid) or [{}])[0]
     cache_root, cache_sha = entry.get('installPath', ''), entry.get('gitCommitSha', '')
@@ -160,8 +185,8 @@ def resolve(pid):
         pin, url = src.get('sha', ''), src.get('url', '')
         if pin and cache_sha and same_sha(pin, cache_sha) and os.path.isdir(cache_root):
             return cache_root, '', None            # the frozen cache happens to be current
-        mirror = os.path.join(mirrors, pid, pin[:12]) if pin else ''
-        spec = (pid, url, pin) if (pin and url) else None
+        mirror = os.path.join(mirrors, munge(pid), pin[:12]) if pin else ''
+        spec = (pid, url, pin, munge(pid) + '/' + pin[:12], 'sha') if (pin and url) else None
         if mirror and os.path.isdir(mirror):
             return mirror, '', spec
         return '', 'refresh-needed|%s pins %s, install cache at %s - run --refresh' % (
@@ -205,8 +230,8 @@ for line in open(inventory, encoding='utf-8'):
     rows.append([skill, pid, sub, base, up.replace('\\', '/'), tree_hash(up), note, dest])
 
 if mode == 'mirrors':
-    for pid, url, pin in specs:
-        print('\t'.join([pid, url, pin]))
+    for pid, url, ref, rel, kind in specs:
+        print('\t'.join([pid, url, ref, rel, kind]))
 else:
     # \x1f, not \t: tab is IFS *whitespace*, so bash's `read` collapses a run of tabs into
     # one delimiter and an empty field mid-record shifts every field after it left by one.
@@ -250,7 +275,6 @@ drift_diff() {                      # $1 upstream  $2 live
 # Makes the current upstream content actually present on disk. Touches plugins/ only - nothing
 # under $SKILLS_DIR is read or written here, so this runs before the user has confirmed anything.
 refresh() {
-  local pid url pin mirror
   if command -v claude >/dev/null 2>&1; then
     if claude plugin marketplace update >/dev/null 2>&1; then
       echo "refresh: marketplace clones updated"
@@ -261,30 +285,52 @@ refresh() {
     echo "refresh: WARNING claude CLI not on PATH - marketplace clones not updated" >&2
   fi
 
-  # A url-pinned plugin is the only kind whose current content is nowhere on disk: the catalog
-  # records a sha, and the install cache is frozen behind it. Fetching the pinned commit shallow is
-  # a couple of seconds and needs no plugin re-install, which would touch enabledPlugins.
-  while IFS=$'\t' read -r pid url pin; do
+  sync_mirrors
+  prune_mirrors
+  echo "refresh: done - run --check"
+}
+
+# The fetching half of refresh, split out so --self-test can drive it without shelling out to the
+# real `claude plugin marketplace update`. Two spec kinds flow through the same stream:
+#   sha - catalog-pinned and immutable: skip a present mirror, fetch the pinned commit otherwise.
+#         A url-pinned plugin is the one kind whose current content is otherwise nowhere on disk:
+#         the catalog records a sha, and the install cache is frozen behind it. Fetching the pinned
+#         commit shallow is a couple of seconds and needs no plugin re-install, which would touch
+#         enabledPlugins.
+#   git - branch-tracking and mutable: a present mirror is stale by definition, so fetch and
+#         hard-reset to the branch tip every run - skipping it would recreate the frozen-cache
+#         failure this whole skill exists to prevent. A failed fetch keeps the last-known-good
+#         mirror with a loud WARNING: stale-but-present beats reporting nothing, and the WARNING is
+#         the signal that --check compared against the old tip.
+sync_mirrors() {
+  local pid url ref rel kind mirror
+  while IFS=$'\t' read -r pid url ref rel kind; do
     [ -n "$pid" ] || continue
-    mirror="$MIRRORS/$pid/${pin:0:12}"
-    if [ -d "$mirror/.git" ]; then
-      echo "refresh: $pid already mirrored at ${pin:0:12}"; continue
+    mirror="$MIRRORS/$rel"
+    if [ "$kind" = git ]; then
+      if [ -d "$mirror/.git" ]; then
+        echo "refresh: updating $pid at $ref"
+        if ! { git -C "$mirror" fetch -q --depth 1 origin "$ref" \
+               && git -C "$mirror" reset -q --hard FETCH_HEAD; }; then
+          echo "refresh: WARNING fetch failed for $pid - keeping the mirror at the last known tip" >&2
+        fi
+        continue
+      fi
+    elif [ -d "$mirror/.git" ]; then
+      echo "refresh: $pid already mirrored at ${ref:0:12}"; continue
     fi
-    echo "refresh: mirroring $pid at ${pin:0:12}"
+    echo "refresh: mirroring $pid at ${ref:0:12}"
     rm -rf "$mirror"; mkdir -p "$mirror"
     if git init -q "$mirror" \
        && git -C "$mirror" remote add origin "$url" \
-       && git -C "$mirror" fetch -q --depth 1 origin "$pin" \
+       && git -C "$mirror" fetch -q --depth 1 origin "$ref" \
        && git -C "$mirror" checkout -q FETCH_HEAD; then
       :
     else
       rm -rf "$mirror"
-      echo "refresh: FAILED to mirror $pid at ${pin:0:12} from $url" >&2
+      echo "refresh: FAILED to mirror $pid at ${ref:0:12} from $url" >&2
     fi
   done < <(py_helper mirrors "$INVENTORY" "$PLUGINS_JSON" "$MARKETPLACES" "$MIRRORS")
-
-  prune_mirrors
-  echo "refresh: done - run --check"
 }
 
 # A mirror is resolved upstream, not a leftover, so the one at the currently pinned sha survives:
@@ -294,8 +340,10 @@ refresh() {
 prune_mirrors() {                   # $1 --dry-run to report only
   local dry=${1:-} keep d rel n=0
   [ -d "$MIRRORS" ] || return 0
+  # $4 is the rel the python side computed - exactly the two on-disk segments for both spec kinds,
+  # so the 12-char-sha truncation knowledge lives only there.
   keep=$(py_helper mirrors "$INVENTORY" "$PLUGINS_JSON" "$MARKETPLACES" "$MIRRORS" \
-         | awk -F'\t' 'NF>=3 {printf "%s/%s\n", $1, substr($3,1,12)}')
+         | awk -F'\t' 'NF>=4 {print $4}')
   while IFS= read -r d; do
     rel=${d#"$MIRRORS"/}
     if ! grep -qxF "$rel" <<<"$keep"; then
@@ -304,7 +352,7 @@ prune_mirrors() {                   # $1 --dry-run to report only
   done < <(find "$MIRRORS" -mindepth 2 -maxdepth 2 -type d 2>/dev/null)
   [ "$n" -eq 0 ] || echo "clean: $n stale mirror(s)$([ -n "$dry" ] && echo ' (dry run)' || echo ' removed')"
   local live; live=$(grep -c . <<<"$keep" || true)
-  [ "$live" -eq 0 ] || echo "clean: $live mirror(s) kept at the pinned sha (resolved upstream, not a leftover)"
+  [ "$live" -eq 0 ] || echo "clean: $live mirror(s) kept at the pinned sha or tracked branch (resolved upstream, not a leftover)"
 }
 
 # --- protected local edits as data ---------------------------------------------------------------
@@ -900,6 +948,65 @@ self_test() {
   rm -rf "$root/references"
   case "$(check)" in *'BLOCKED: refs'*) ;;
     *) echo "self-test FAIL: a copy lost under a real baseline is not BLOCKED" >&2; return 1 ;;
+  esac
+
+  # --- a git+<repo>@<branch> row tracks a plain repo's branch tip --------------------------------
+  # No marketplace involved: the inventory row is the whole spec, the mirror is mutable (a second
+  # sync must fetch+reset to the new tip, not skip), the row vendors and re-vendors like any other,
+  # and prune keeps the mirror while the row exists. The repo is a local path - resolve() uses such
+  # a url verbatim, and MSYS git fetches local-path remotes shallow without complaint.
+  local src=$root/gitsrc gm
+  git init -q -b main "$src"
+  mkdir -p "$src/skills/demo"
+  printf -- '---\nname: demo\n---\ngit-v1\n' > "$src/skills/demo/SKILL.md"
+  git -C "$src" add -A
+  git -C "$src" -c user.email=t@t -c user.name=t commit -qm v1
+  mkdir -p "$root/skills7" "$root/patches7"
+  SKILLS_DIR="$root/skills7"; PATCHES="$root/patches7"
+  INVENTORY="$root/inv7.tsv"; PLUGINS_JSON="$root/plugins7.json"; printf '{}' > "$PLUGINS_JSON"
+  printf 'demo\tgit+%s@main\tskills/demo\t-\n' "$src" > "$INVENTORY"
+  gm="$MIRRORS/git+${src//\//__}/main"
+  sync_mirrors
+  grep -q '^git-v1$' "$gm/skills/demo/SKILL.md" \
+    || { echo "self-test FAIL: git mirror not cloned at the branch tip" >&2; return 1; }
+  case "$(check)" in *'APPLIABLE: demo'*) ;;
+    *) echo "self-test FAIL: git row is not APPLIABLE once mirrored" >&2; return 1 ;;
+  esac
+  apply demo >/dev/null 2>&1 \
+    || { echo "self-test FAIL: initial vendor of a git row failed" >&2; return 1; }
+  grep -q '^git-v1$' "$root/skills7/demo/SKILL.md" \
+    || { echo "self-test FAIL: git row did not vendor upstream content" >&2; return 1; }
+  # Second sync after a new commit: the mirror must move, proving fetch+reset ran and not the skip.
+  printf -- '---\nname: demo\n---\ngit-v2\n' > "$src/skills/demo/SKILL.md"
+  git -C "$src" add -A
+  git -C "$src" -c user.email=t@t -c user.name=t commit -qm v2
+  sync_mirrors
+  grep -q '^git-v2$' "$gm/skills/demo/SKILL.md" \
+    || { echo "self-test FAIL: tracking mirror did not move to the new branch tip" >&2; return 1; }
+  apply demo >/dev/null 2>&1 \
+    || { echo "self-test FAIL: re-vendor of a moved git row failed" >&2; return 1; }
+  grep -q '^git-v2$' "$root/skills7/demo/SKILL.md" \
+    || { echo "self-test FAIL: git row did not take the upstream update" >&2; return 1; }
+  # Prune keeps the tracking mirror while its row exists; anything else at depth 2 goes.
+  mkdir -p "$MIRRORS/gone/x"
+  prune_mirrors >/dev/null
+  [ -d "$gm" ] \
+    || { echo "self-test FAIL: tracking mirror pruned while its row exists" >&2; return 1; }
+  [ ! -d "$MIRRORS/gone/x" ] \
+    || { echo "self-test FAIL: mirror with no row survived the prune" >&2; return 1; }
+  # A malformed git pid classifies and never reaches APPLIABLE.
+  printf 'bad\tgit+no-at-sign\tskills/x\t-\n' >> "$INVENTORY"
+  case "$(check)" in *'upstream-missing'*) ;;
+    *) echo "self-test FAIL: malformed git pid does not classify" >&2; return 1 ;;
+  esac
+  case "$(check)" in *'APPLIABLE: bad'*)
+        echo "self-test FAIL: malformed git pid offered as APPLIABLE" >&2; return 1 ;;
+  esac
+  sed -i '/^bad\t/d' "$INVENTORY"
+  grep -q '^bad' "$INVENTORY" \
+    && { echo "self-test FAIL: malformed git pid row not removed from the fixture" >&2; return 1; }
+  case "$(check)" in *identical*) ;;
+    *) echo "self-test FAIL: git row does not read identical after apply" >&2; return 1 ;;
   esac
 
   echo "self-test OK"

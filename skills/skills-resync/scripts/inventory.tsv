@@ -4,6 +4,11 @@
 #   skill <TAB> plugin@marketplace <TAB> subpath-under-plugin <TAB> baseline (tree hash)
 #         [<TAB> dest, relative to $SKILLS_DIR - omit for a skill, which vendors into its own name]
 #
+# The pid column also accepts git+<repo>@<branch> (e.g. git+github.com/RisorseArtificiali/skills@main):
+# a plain repo with no marketplace, where this row is the whole spec and the branch tip is the
+# upstream. resync.sh mirrors it at the tip and re-fetches on every --refresh - see SKILL.md
+# "Upstream resolution".
+#
 # The optional 5th column is what lets a row vendor something that is not a skill. Only the shared
 # `references/` tree uses it: the agent-skills bodies cite `../../references/<file>.md`, which from
 # ~/.claude/skills/<skill>/SKILL.md resolves to ~/.claude/references/ - so `../references` here
@@ -12,8 +17,8 @@
 #
 # No version directory appears here on purpose. resync.sh resolves upstream from the
 # marketplace clone under plugins/marketplaces/ (NOT the install cache, which is frozen for
-# disabled plugins), following the source kind the marketplace catalog records. See SKILL.md
-# "Upstream resolution".
+# disabled plugins), following the source kind the marketplace catalog records - except for
+# git+ rows, which bypass the catalog entirely. See SKILL.md "Upstream resolution".
 #
 # A new row is authored with `-` as its baseline: that is what marks it never-vendored, so --check
 # reports it `unvendored` (APPLIABLE) and --apply performs the initial copy and writes the real
@@ -65,3 +70,7 @@ skill-creator	skill-creator@claude-plugins-official	skills/skill-creator	887b202
 build-mcp-server	mcp-server-dev@claude-plugins-official	skills/build-mcp-server	af733dde56bbdcac
 build-mcp-app	mcp-server-dev@claude-plugins-official	skills/build-mcp-app	c0172bc88eeeda9f
 build-mcpb	mcp-server-dev@claude-plugins-official	skills/build-mcpb	fc2a5a2ef1902d93
+plan-walkthrough	git+github.com/RisorseArtificiali/skills@main	skills/plan-walkthrough	4d92342df63fa329
+pr-walkthrough	git+github.com/RisorseArtificiali/skills@main	skills/pr-walkthrough	66c2825a5578b327
+slides	git+github.com/RisorseArtificiali/skills@main	skills/slides	376839709d3250c6
+adversarial-code-review	git+github.com/RisorseArtificiali/skills@main	skills/adversarial-code-review	b1b88b88a3cf38ba
