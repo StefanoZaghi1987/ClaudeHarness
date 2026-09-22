@@ -1,0 +1,12 @@
+diff -ruN --strip-trailing-cr a/SKILL.md b/SKILL.md
+--- a/SKILL.md
++++ b/SKILL.md
+@@ -19,7 +19,7 @@
+ 
+ ```bash
+ # Optional: Initialize the ideas directory
+-bash skills/idea-refine/scripts/idea-refine.sh
++bash "${CLAUDE_SKILL_DIR}/scripts/idea-refine.sh"
+ ```
+ 
+ **Trigger Phrases:**

@@ -1,0 +1,79 @@
+# Machine-readable half of the skills-resync inventory: what each vendored skill was
+# copied from, and the upstream tree hash it was copied at.
+#
+#   skill <TAB> plugin@marketplace <TAB> subpath-under-plugin <TAB> baseline (tree hash)
+#         [<TAB> dest, relative to $SKILLS_DIR - omit for a skill, which vendors into its own name]
+#
+# The pid column also accepts git+<repo>@<branch> (e.g. git+github.com/RisorseArtificiali/skills@main):
+# a plain repo with no marketplace, where this row is the whole spec and the branch tip is the
+# upstream. resync.sh mirrors it at the tip and re-fetches on every --refresh - see SKILL.md
+# "Upstream resolution".
+#
+# The optional 5th column is what lets a row vendor something that is not a skill. Only the shared
+# `references/` tree uses it: the agent-skills bodies cite `../../references/<file>.md`, which from
+# ~/.claude/skills/<skill>/SKILL.md resolves to ~/.claude/references/ - so `../references` here
+# makes every one of those pointers resolve with no path edit and no patch. Relative on purpose:
+# the inventory stays machine-independent.
+#
+# No version directory appears here on purpose. resync.sh resolves upstream from the
+# marketplace clone under plugins/marketplaces/ (NOT the install cache, which is frozen for
+# disabled plugins), following the source kind the marketplace catalog records - except for
+# git+ rows, which bypass the catalog entirely. See SKILL.md "Upstream resolution".
+#
+# A new row is authored with `-` as its baseline: that is what marks it never-vendored, so --check
+# reports it `unvendored` (APPLIABLE) and --apply performs the initial copy and writes the real
+# hash. A missing directory under a *real* baseline is a copy that was lost, and stays BLOCKED.
+#
+# The baseline is a per-skill hash of the upstream skill directory, not a plugin commit sha:
+# a commit elsewhere in the plugin no longer reads as "this skill moved". `--hash <dir>`
+# prints one. It is rewritten by `resync.sh --apply` on every successful re-vendor.
+# Do not hand-edit it: a baseline that lags reports upstream as moved when it has not.
+#
+# SKILL.md's L-flag index and RULINGS.md's full entries are the source of truth for *why* a
+# row is here and which protected edits it carries. This file is the source of truth for
+# *where* it came from.
+#
+# The rows below ship the author's own vendored fleet as a worked example of the format,
+# not configuration to reproduce. Point $INVENTORY at your own file (or start from an
+# empty one) to manage a different set of vendored skills.
+#
+references	agent-skills@addy-agent-skills	references	2d25c5d5c5119c87	../references
+code-review-and-quality	agent-skills@addy-agent-skills	skills/code-review-and-quality	57574227c803c4a1
+code-simplification	agent-skills@addy-agent-skills	skills/code-simplification	a6d4aba8358a4663
+context-engineering	agent-skills@addy-agent-skills	skills/context-engineering	0ce9bdcfee0821e7
+documentation-and-adrs	agent-skills@addy-agent-skills	skills/documentation-and-adrs	cc6700698ab202af
+doubt-driven-development	agent-skills@addy-agent-skills	skills/doubt-driven-development	939cf884cb25b766
+idea-refine	agent-skills@addy-agent-skills	skills/idea-refine	c999f1db0b62f009
+incremental-implementation	agent-skills@addy-agent-skills	skills/incremental-implementation	037857b2d81c5e70
+interview-me	agent-skills@addy-agent-skills	skills/interview-me	6b64430690d76fac
+planning-and-task-breakdown	agent-skills@addy-agent-skills	skills/planning-and-task-breakdown	34768342dbf3b84e
+security-and-hardening	agent-skills@addy-agent-skills	skills/security-and-hardening	545f9d004e8ec13b
+spec-driven-development	agent-skills@addy-agent-skills	skills/spec-driven-development	9339fa902b2d616b
+diagnosing-bugs	mattpocock-skills@claude-plugins-official	skills/engineering/diagnosing-bugs	3eaddfa5b028a2d4
+grilling	mattpocock-skills@claude-plugins-official	skills/productivity/grilling	d5833e50e0081bbf
+handoff	mattpocock-skills@claude-plugins-official	skills/productivity/handoff	fe287d0ae54ed66c
+wait-what	mattpocock-skills@claude-plugins-official	skills/productivity/wait-what	d8c5157780c8b493
+wayfinder	mattpocock-skills@claude-plugins-official	skills/engineering/wayfinder	fa164901a041cab3
+writing-for-agents	mattpocock-skills@claude-plugins-official	skills/productivity/writing-for-agents	dc53f07d1f662137
+codebase-design	mattpocock-skills@claude-plugins-official	skills/engineering/codebase-design	826e65f8d718794b
+domain-modeling	mattpocock-skills@claude-plugins-official	skills/engineering/domain-modeling	2cc88b237a4704f9
+improve-codebase-architecture	mattpocock-skills@claude-plugins-official	skills/engineering/improve-codebase-architecture	86096700ab48a5fb
+prototype	mattpocock-skills@claude-plugins-official	skills/engineering/prototype	c4efd5e0f1c302b6
+research	mattpocock-skills@claude-plugins-official	skills/engineering/research	b1976e3b4a7cdcee
+to-spec	mattpocock-skills@claude-plugins-official	skills/engineering/to-spec	f525dab8b9bd3961
+brainstorming	superpowers@claude-plugins-official	skills/brainstorming	3a59b10c026dfa63
+dispatching-parallel-agents	superpowers@claude-plugins-official	skills/dispatching-parallel-agents	1acb899b23c2bdb5
+executing-plans	superpowers@claude-plugins-official	skills/executing-plans	5036191743cbb55b
+subagent-driven-development	superpowers@claude-plugins-official	skills/subagent-driven-development	e798f5990cd677ac
+systematic-debugging	superpowers@claude-plugins-official	skills/systematic-debugging	e4263f70f52de028
+writing-plans	superpowers@claude-plugins-official	skills/writing-plans	e0dd3fe342b24c3a
+claude-automation-recommender	claude-code-setup@claude-plugins-official	skills/claude-automation-recommender	945d1b7420ebb911
+skill-creator	skill-creator@claude-plugins-official	skills/skill-creator	887b2027e7eeb09e
+build-mcp-server	mcp-server-dev@claude-plugins-official	skills/build-mcp-server	af733dde56bbdcac
+build-mcp-app	mcp-server-dev@claude-plugins-official	skills/build-mcp-app	c0172bc88eeeda9f
+build-mcpb	mcp-server-dev@claude-plugins-official	skills/build-mcpb	fc2a5a2ef1902d93
+plan-walkthrough	git+github.com/RisorseArtificiali/skills@main	skills/plan-walkthrough	4d92342df63fa329
+pr-walkthrough	git+github.com/RisorseArtificiali/skills@main	skills/pr-walkthrough	66c2825a5578b327
+slides	git+github.com/RisorseArtificiali/skills@main	skills/slides	376839709d3250c6
+adversarial-code-review	git+github.com/RisorseArtificiali/skills@main	skills/adversarial-code-review	b1b88b88a3cf38ba
+writing-prds	git+github.com/RisorseArtificiali/skills@main	skills/writing-prds	14ce1cdeff2f7e8b

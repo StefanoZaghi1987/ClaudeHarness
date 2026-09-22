@@ -1,0 +1,12 @@
+diff -ruN --strip-trailing-cr a/SKILL.md b/SKILL.md
+--- a/SKILL.md
++++ b/SKILL.md
+@@ -24,7 +24,7 @@
+ 1. A validated understanding of the problem — a design doc from `brainstorming`, an evaluated issue, or an equivalent written source.
+ 2. The decisions from `grilling` (or an explicit user statement that grilling is skipped).
+ 
+-If these don't exist yet, invoke `brainstorming` and/or `grilling` first — writing a PRD on unexamined requirements just launders ambiguity into official-looking text. If the input is a GitHub issue, read it (`gh issue view <N> --comments`) and treat unresolved discussion threads as grilling questions still to ask.
++If these don't exist yet, invoke `grilling` first, and if the problem itself is still unexamined, stop and tell the user to run `/brainstorming` — writing a PRD on unexamined requirements just launders ambiguity into official-looking text. If the input is a GitHub issue, read it (`gh issue view <N> --comments`) and treat unresolved discussion threads as grilling questions still to ask.
+ 
+ ## The PRD Document
+ 
