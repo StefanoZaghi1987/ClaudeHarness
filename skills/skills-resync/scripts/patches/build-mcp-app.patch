@@ -1,0 +1,33 @@
+diff -ruN --strip-trailing-cr a/references/widget-templates.md b/references/widget-templates.md
+--- a/references/widget-templates.md
++++ b/references/widget-templates.md
+@@ -128,7 +128,7 @@
+ 
+ **Tool returns:** `{ content: [{ type: "text", text: JSON.stringify({ message, confirmLabel? }) }] }`
+ 
+-**Note:** For simple confirmation, prefer **elicitation** over a widget — see `../build-mcp-server/references/elicitation.md`. Use this widget when you need custom styling or context beyond what a native form offers.
++**Note:** For simple confirmation, prefer **elicitation** over a widget — see `../../build-mcp-server/references/elicitation.md`. Use this widget when you need custom styling or context beyond what a native form offers.
+ 
+ ---
+ 
+diff -ruN --strip-trailing-cr a/SKILL.md b/SKILL.md
+--- a/SKILL.md
++++ b/SKILL.md
+@@ -85,7 +85,7 @@
+ 
+ Same widget mechanism, but the server runs locally inside an MCPB bundle. Use this when the widget needs to drive a **local** application — e.g., a file picker that browses the actual local disk, a dialog that controls a desktop app.
+ 
+-For MCPB packaging mechanics, defer to the **`build-mcpb`** skill. Everything below applies to both shapes.
++For MCPB packaging mechanics, tell the user to run `/build-mcpb`. Everything below applies to both shapes.
+ 
+ ---
+ 
+@@ -259,7 +259,7 @@
+ app.listen(process.env.PORT ?? 3000);
+ ```
+ 
+-For local-only widget apps (driving a desktop app, reading local files), swap the transport to `StdioServerTransport` and package via the `build-mcpb` skill.
++For local-only widget apps (driving a desktop app, reading local files), swap the transport to `StdioServerTransport` and tell the user to run `/build-mcpb` to package it.
+ 
+ **Widget (`widgets/picker.html`):**
+ 

@@ -1,0 +1,32 @@
+diff -ruN --strip-trailing-cr a/SKILL.md b/SKILL.md
+--- a/SKILL.md
++++ b/SKILL.md
+@@ -88,7 +88,7 @@
+ 
+ Usually remote, but can be shipped as MCPB if the UI needs to drive a local app.
+ 
+-→ Hand off to the **`build-mcp-app`** skill.
++→ Hand off: tell the user to run `/build-mcp-app`.
+ 
+ ### MCPB (bundled local server)
+ 
+@@ -96,7 +96,7 @@
+ 
+ **Choose this when** the server *must* run on the user's machine — it reads local files, drives a desktop app, talks to localhost services, or needs OS-level access.
+ 
+-→ Hand off to the **`build-mcpb`** skill.
++→ Hand off: tell the user to run `/build-mcpb`.
+ 
+ ### Local stdio (npx / uvx) — *not recommended for distribution*
+ 
+@@ -161,8 +161,8 @@
+ Once you've settled the four decisions (deployment model, tool pattern, framework, auth), do **one** of:
+ 
+ 1. **Remote HTTP, no UI** → Scaffold inline using `references/remote-http-scaffold.md` (portable) or `references/deploy-cloudflare-workers.md` (fastest deploy). This skill can finish the job.
+-2. **MCP app (UI widgets)** → Summarize the decisions so far, then load the **`build-mcp-app`** skill.
+-3. **MCPB (bundled local)** → Summarize the decisions so far, then load the **`build-mcpb`** skill.
++2. **MCP app (UI widgets)** → Summarize the decisions so far, then stop and tell the user to run `/build-mcp-app` with that summary.
++3. **MCPB (bundled local)** → Summarize the decisions so far, then stop and tell the user to run `/build-mcpb` with that summary.
+ 4. **Local stdio prototype** → Scaffold inline (simplest case), flag the MCPB upgrade path.
+ 
+ When handing off, restate the design brief in one paragraph so the next skill doesn't re-ask.

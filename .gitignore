@@ -1,0 +1,40 @@
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editors
+.idea/
+.vscode/
+*.swp
+
+# Python (embedded in resync.sh tooling)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Secrets — never commit
+.env
+.env.*
+
+# Claude Code per-machine settings (generated when working in this repo)
+.claude/settings.local.json
+
+# patch/diff artifacts (resync.sh)
+*.orig
+*.rej
+*.bak
+
+# Node (not currently produced by this repo)
+node_modules/
+
+# Build output (build_release.py)
+dist/
+
+# Logs & temp
+*.log
+*.tmp
+
+# Marketing drafts (stay local, never tracked)
+/marketing/

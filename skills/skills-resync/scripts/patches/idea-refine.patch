@@ -1,0 +1,13 @@
+diff --git a/SKILL.md b/SKILL.md
+index c35e693..581e4ad 100644
+--- a/SKILL.md
++++ b/SKILL.md
+@@ -29,7 +29,7 @@ This skill is primarily an interactive dialogue. Invoke it with an idea, and the
+ 
+ ```bash
+ # Optional: Initialize the ideas directory
+-bash skills/idea-refine/scripts/idea-refine.sh
++bash "${CLAUDE_SKILL_DIR}/scripts/idea-refine.sh"
+ ```
+ 
+ ## Output

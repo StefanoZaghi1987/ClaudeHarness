@@ -1,0 +1,21 @@
+diff -ruN --strip-trailing-cr a/SKILL.md b/SKILL.md
+--- a/SKILL.md
++++ b/SKILL.md
+@@ -174,7 +174,7 @@
+    - Automated test if possible
+    - One-off test script if no framework
+    - MUST have before fixing
+-   - Use the `superpowers:test-driven-development` skill for writing proper failing tests
++   - Watch it fail for the expected reason before writing the fix — a test that passes against the bug proves nothing
+ 
+ 2. **Implement Single Fix**
+    - Address the root cause identified
+@@ -186,7 +186,7 @@
+    - Test passes now?
+    - No other tests broken?
+    - Issue actually resolved?
+-   - Use the `superpowers:verification-before-completion` skill before claiming success
++   - Run the verification command and read its output before claiming success — evidence before assertions, always
+ 
+ 4. **If Fix Doesn't Work**
+    - STOP

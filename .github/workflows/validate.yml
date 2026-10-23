@@ -1,0 +1,20 @@
+name: validate
+on: [push, pull_request]
+jobs:
+  validate:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # python3 or python, whichever runs: the runners differ in which name is a real interpreter.
+      - run: for py in python3 python; do if "$py" -c '' 2>/dev/null; then exec "$py" build_release.py dev; fi; done; exit 1
+      - run: bash skills/skills-resync/scripts/resync.sh --self-test
+      # macOS ships bash 3.2 as /bin/bash; the step above may run a newer one from PATH.
+      - if: runner.os == 'macOS'
+        run: /bin/bash skills/skills-resync/scripts/resync.sh --self-test

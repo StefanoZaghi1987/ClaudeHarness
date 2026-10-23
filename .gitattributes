@@ -1,0 +1,5 @@
+# resync.sh compares patches and reads the inventory as LF data, and bash is not required to
+# tolerate CRLF. Pin them so a core.autocrlf=true checkout (the Git for Windows default) stays LF.
+*.sh    text eol=lf
+*.tsv   text eol=lf
+*.patch text eol=lf
